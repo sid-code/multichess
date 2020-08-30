@@ -11,6 +11,6 @@ bin           = @["web.js"]
 
 # Dependencies
 
-requires "nim >= 1.3.5"
+requires "nim >= 1.2"
 requires "karax"
 requires "html5_canvas"
