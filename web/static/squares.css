@@ -1,0 +1,20 @@
+.board {
+    line-height: 0;
+    user-select: none;
+    z-index: 0;
+}
+
+.square {
+    width: var(--piece-size);
+    height: var(--piece-size);
+    display: inline-block;
+    z-index: 1;
+}
+
+.square-black {
+    background-color: #334455;
+}
+
+.square-white {
+    background-color: #CCCCCC;
+}

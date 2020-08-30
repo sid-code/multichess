@@ -1,0 +1,41 @@
+:root {
+    --piece-size: 40px;
+    --orig-size: 60px;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+#ROOT {
+    width: 100%;
+    height: 100%;
+}
+
+.client-container {
+    position: relative;
+    z-index: 2;
+}
+
+.board-container {
+    z-index: 3;
+}
+
+.client-hints {
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 1;
+}
+
+
+.board {
+    white-space: nowrap;
+    display: inline-block;
+}
+
+
+.board-actionable {
+    box-sizing: border-box;
+    border: 10px solid black;
+}

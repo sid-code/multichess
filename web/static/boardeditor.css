@@ -1,0 +1,7 @@
+.piecetoplace-square {
+    box-sizing: border-box;
+    background: #FFCCFF
+}
+.piecetoplace-selected {
+    border: 2px dashed black;
+}

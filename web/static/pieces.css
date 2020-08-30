@@ -1,0 +1,83 @@
+.piece {
+    background: url(pieces.png);
+    background-size: calc(var(--piece-size) * 6) calc(var(--piece-size) * 2);
+    width: var(--piece-size);
+    height: var(--piece-size);
+    resize: both;
+    position: absolute;
+    z-index: 3;
+}
+
+.highlight {
+    width: var(--piece-size);
+    height: var(--piece-size);
+    opacity: 0.5;
+    z-index: 2;
+    position: absolute;
+}
+.highlight-move {
+    background: #129812;
+}
+.highlight-select {
+    background: #442244;
+}
+
+.highlight-check {
+    background: #CC2233;
+}
+
+.piece-queen-white {
+    background-position: 0 calc(var(--piece-size));
+}
+
+.piece-queen-black {
+    background-position: 0 calc(var(--piece-size) * 2);
+}
+
+.piece-king-white {
+    background-position: calc(var(--piece-size) * (-1)) calc(var(--piece-size));
+}
+
+.piece-king-black {
+    background-position: calc(var(--piece-size) * (-1)) calc(var(--piece-size) * 2);
+}
+
+.piece-rook-white {
+    background-position: calc(var(--piece-size) * (-2)) calc(var(--piece-size));
+}
+
+.piece-rook-black {
+    background-position: calc(var(--piece-size) * (-2)) calc(var(--piece-size) * 2);
+}
+
+.piece-knight-white {
+    background-position: calc(var(--piece-size) * (-3)) calc(var(--piece-size));
+}
+
+.piece-knight-black {
+    background-position: calc(var(--piece-size) * (-3)) calc(var(--piece-size) * 2);
+}
+
+.piece-bishop-white {
+    background-position: calc(var(--piece-size) * (-4)) calc(var(--piece-size));
+}
+
+.piece-bishop-black {
+    background-position: calc(var(--piece-size) * (-4)) calc(var(--piece-size) * 2);
+}
+
+.piece-pawn-white {
+    background-position: calc(var(--piece-size) * (-5)) calc(var(--piece-size));
+}
+
+.piece-pawn-black {
+    background-position: calc(var(--piece-size) * (-5)) calc(var(--piece-size) * 2);
+}
+
+.piece-none-white {
+    background: none !important;
+}
+
+.piece-none-black {
+    background: none !important;
+}
