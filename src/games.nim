@@ -56,6 +56,9 @@ proc makeMove*(g: var MCGame, move: MCMove): MCLatticeNode[MCBoard] =
 # this function. The fact is, undoing a move requires a bit more
 # information than the move itself contains.
 proc undoLastMove*(g: var MCGame) =
+  if len(g.moveLog) == 0:
+    return
+
   let lastMoveInfo = g.moveLog.pop()
   let lastMove = lastMoveInfo.move
   let realToNode = lastMoveInfo.realToNode
