@@ -161,9 +161,6 @@ proc render(state: MCGameView): VNode =
     actionableBoards.incl(move.fromPos.node)
 
   result = buildHtml(tdiv):
-    tdiv(class="game-dot"):
-      text game.rootNode.toDot()
-
     if state.isSinglePlayer():
       button(onclick=proc() = state.undoLastMove()):
         text "oops"
@@ -210,6 +207,9 @@ proc render(cl: MCClient): VNode =
   result = buildHtml(tdiv):
     case cl.status:
       of stConfig:
+        tdiv(class="client-peer-id"):
+          text "peer id: "
+          text cl.id
         text "multichess!"
         br()
         text "start a game!"
@@ -285,7 +285,6 @@ proc initPeer(p: Peer, id: cstring, client: MCClient) {.async.} =
   let wh = window.location.hash
   if len(wh) == 0:
     client.master = true
-    window.location.hash = jsffi.`&`("#", id)
     p.on("connection") do (conn: DataConnection):
       discard client.registerConnection(conn)
   else:
@@ -309,8 +308,8 @@ proc main() {.async.} =
     client.view = some(newGameView(initGame(b), pcolor))
 
   p.on("open", proc(id: cstring) =
-                 echo "Got id: ", id
-                 discard initPeer(p, id, client))
+                 discard initPeer(p, id, client)
+                 redraw())
 
   p.on("error", proc(err: PeerError) =
                   if err.`type` == "peer-unavailable":
