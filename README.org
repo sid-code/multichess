@@ -1,0 +1,23 @@
+* Introduction
+
+Multichess is heavily inspired by [[https://store.steampowered.com/app/1349230/5D_Chess_With_Multiverse_Time_Travel/][that 5D chess game]]. However, the
+rules are not exactly the same.
+
+* Rules
+
+Read the code and figure it out yourself. (just kidding, I'll write
+these soon)
+
+* Building
+
+Make sure you have a recent version of ~nim >= 1.3.5~ along with
+~nimble~.
+
+Then,
+
+#+BEGIN_SRC bash
+$ nimble build
+#+END_SRC
+
+
+This should make a ~web/web.js~ file. Now, open ~web/index.html~.
