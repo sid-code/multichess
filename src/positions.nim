@@ -86,7 +86,6 @@ proc `[]`*(b: MCBoard, p: MCPosition): MCSquare =
 
 proc getSquare*(p: MCPosition): MCSquare =
   p.node.board[p]
+
 proc setSquare*(p: MCPosition, newSquare: MCSquare) =
   p.node.board[p] = newSquare
-
-

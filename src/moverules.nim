@@ -48,7 +48,7 @@ proc makeMove*(move: MCMove): MCMoveInfo =
   let toNode = toPos.node
   let otherPlayer = oppositeColor(square.color)
 
-  let preferredSiblingDirection = 
+  let preferredSiblingDirection =
     if square.color == mccWhite:
       mclsPrev
     else:

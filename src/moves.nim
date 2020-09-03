@@ -203,7 +203,7 @@ defMovement mcpKing:
     for path in combo.possiblePaths():
       for p1 in pos.getPositionsAtPath(path):
         if p1.isBlocked: continue
-        
+
         let candidateMove = moveTo(p1)
         result.add(candidateMove)
 
@@ -215,7 +215,7 @@ defMovement mcpPawn:
   # move up and black pawns move down. Pawns don't move backwards or
   # forwards in time, to respect their "vertical" nature. However,
   # they can capture through time.
-  # 
+  #
   # If a pawn hasn't moved before, it may move forward twice.
   let color = pos.getSquare().color
   let axisDir = if color == mccWhite: mcdUp else: mcdDown
@@ -255,7 +255,6 @@ defMovement mcpPawn:
           let candidateMove = moveTo(cpos)
           if candidateMove.isCapture:
             result.add(candidateMove)
-          
 
 proc `%`*(move: MCMove): JsonNode =
   result = newJObject()

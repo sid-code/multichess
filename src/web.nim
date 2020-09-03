@@ -35,7 +35,6 @@ type
     board: MCBoard
     color: MCPlayerColor
 
-
 # Client
 proc newMCClient(): MCClient =
   new result
@@ -61,8 +60,6 @@ proc getBoardContainerStyle(left: int, top: int): VStyle =
     (StyleAttr.left, cstring($left & "px")),
     (StyleAttr.top, cstring($top & "px")))
 
-  
-
 proc render(board: MCBoard): VNode =
   result = buildHtml(tdiv):
     tdiv(class="board"):
@@ -77,6 +74,7 @@ proc render(board: MCBoard): VNode =
             tdiv(class=getClassFor(board[f, r]))
 
         br()
+
 proc renderBoardTest(): VNode =
   return render(mcStartPos5x5)
 
