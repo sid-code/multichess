@@ -108,3 +108,13 @@ proc newGameView*(game: MCGame, color = none[MCPlayerColor]()): MCGameView =
     highlightedPositions: initHashSet[MCPosition](),
     possibleMovePositions: initHashSet[MCPosition]())
   result.update(game)
+
+proc makeRandomMove*(cs: MCGameView): MCMove =
+  cs.calcMoves()
+  var moves: seq[MCMove]
+  for fp, ms in cs.currentLegalMoves:
+    moves.add(ms)
+  if len(moves) == 0:
+    raise newException(ValueError, "cannot play random move; no legal moves.")
+  result = sample(moves)
+  cs.makeMove(result)
