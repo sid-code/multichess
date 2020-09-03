@@ -1,8 +1,7 @@
 include karax/prelude
 import karax/vstyles
-import strformat, options, tables, sets, json, random
-import asyncjs
-import jsffi, dom
+import options, tables, sets, json, random, streams
+import dom, asyncjs
 import html5_canvas
 import peerjs
 include multichess
