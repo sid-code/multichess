@@ -1,5 +1,5 @@
-import games, latticenodes, moves, positions, layouts, moverules, playercolors
-import options, sets, sequtils
+import games, moves, positions, layouts, moverules, playercolors
+import options, sets, tables, random
 from sugar import `=>`
 
 type
@@ -7,13 +7,19 @@ type
     game*: MCGame
     playerColor*: Option[MCPlayerColor]
     layout*: MCLatticeLayout
-    currentLegalMoves*: seq[MCMove]
+    currentLegalMoves*: Table[MCPosition, seq[MCMove]]
     selectedPosition*: Option[MCPosition]
 
     ## If existent, a move that would capture a king.
-    checks*: seq[MCMove] 
+    checks*: seq[MCMove]
 
-    highlightedPositions*: HashSet[MCPosition]
+    highlightedPositions: HashSet[MCPosition]
+    possibleMovePositions: HashSet[MCPosition]
+
+proc clearSelection*(cs: MCGameView) =
+  cs.selectedPosition = none[MCPosition]()
+  init(cs.possibleMovePositions)
+  init(cs.highlightedPositions)
 
 proc isSelected*(cs: MCGameView, pos: MCPosition): bool =
   let res = cs.selectedPosition.map(p => p == pos)
@@ -22,6 +28,8 @@ proc isSelected*(cs: MCGameView, pos: MCPosition): bool =
   else:
     return false
 
+proc isPossibleMove*(cs: MCGameView, pos: MCPosition): bool =
+  return pos in cs.possibleMovePositions
 proc isHighlighted*(cs: MCGameView, pos: MCPosition): bool =
   return pos in cs.highlightedPositions
 
@@ -31,13 +39,24 @@ proc isChecked*(cs: MCGameView, pos: MCPosition): bool =
       return true
   return false
 
+proc selectPosition*(cs: MCGameView, pos: MCPosition) =
+  cs.selectedPosition = some(pos)
+proc markPossibleMove*(cs: MCGameView, pos: MCPosition) =
+  cs.possibleMovePositions.incl(pos)
+
+proc highlightPosition*(cs: MCGameView, pos: MCPosition) =
+  cs.highlightedPositions.incl(pos)
+
+proc highlightCheckingPieces*(cs: MCGameView) =
+  cs.clearSelection()
+  for check in cs.checks:
+    cs.highlightPosition(check.fromPos)
+
 proc isSinglePlayer*(cs: MCGameView): bool =
   cs.playerColor.isNone()
 
-proc clearSelection*(cs: MCGameView) =
-  cs.selectedPosition = none[MCPosition]()
-  init(cs.highlightedPositions)
-  
+proc clearLegalMoves(cs: MCGameView) =
+  cs.currentLegalMoves.clear()
 
 proc calcLayout(cs: MCGameView) =
   cs.layout = layout(cs.game.rootNode)
@@ -47,19 +66,31 @@ proc findCheck(cs: MCGameView) =
   cs.checks = cs.game.rootNode.checksInPosition()
 
 proc calcMoves(cs: MCGameView) =
-  if cs.playerColor.isSome():
-    cs.currentLegalMoves = @[]
-    for move in getAllLegalMoves(cs.game.rootNode):
-      if move.fromPos.getSquare().color == cs.playerColor.get():
-        cs.currentLegalMoves.add(move)
-  else:
-    cs.currentLegalMoves = toSeq(getAllLegalMoves(cs.game.rootNode))
+  cs.clearLegalMoves()
+  for move in getAllLegalMoves(cs.game.rootNode):
+    if cs.playerColor.isNone() or move.fromPos.getSquare().color == cs.playerColor.get():
+      if cs.currentLegalMoves.hasKeyOrPut(move.fromPos, @[]):
+        cs.currentLegalMoves[move.fromPos].add(move)
+
+proc calcMovesAt(cs: MCGameView, p: MCPosition) =
+  if p in cs.currentLegalMoves:
+    return
+  cs.currentLegalMoves[p] = @[]
+  for move in getAllLegalMovesAt(cs.game.rootNode, p):
+    if cs.playerColor.isNone() or move.fromPos.getSquare().color == cs.playerColor.get():
+      cs.currentLegalMoves[p].add(move)
+
+proc click*(cs: MCGameView, p: MCPosition) =
+  cs.calcMovesAt(p)
+  cs.clearSelection()
+  for move in cs.currentLegalMoves[p]:
+    cs.markPossibleMove(move.toPos)
 
 proc update*(cs: MCGameView, game: MCGame) =
   cs.game = game
+  cs.clearLegalMoves()
   cs.calcLayout()
   cs.findCheck()
-  cs.calcMoves()
   cs.clearSelection()
 
 proc makeMove*(cs: MCGameView, move: MCMove) =

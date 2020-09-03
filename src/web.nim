@@ -114,7 +114,8 @@ proc drawGameView(state: MCGameView, canvas: Canvas) =
       ctx.lineTo(ccx, ccy)
       ctx.stroke()
     
-proc squareOnClick(state: MCGameView): proc(ev: Event, n: Vnode) =
+proc squareOnClick(cl: MCClient): proc(ev: Event, n: Vnode) =
+  let state = cl.view.get()
   return proc(ev: Event, n: VNode) {.closure.} =
            # Note: using a closure for these parameters DOES NOT work
            # with karax (as of 2020 August 29). The event listeners
@@ -130,21 +131,20 @@ proc squareOnClick(state: MCGameView): proc(ev: Event, n: Vnode) =
            let clickedPos = pos(node, file, rank)
            if state.isSelected(clickedPos):
              state.clearSelection()
-           elif state.isHighlighted(clickedPos):
+           elif state.isPossibleMove(clickedPos):
              ## TODO: PROMOTION
              state.selectedPosition.map(
                proc(sp: MCPosition) =
-                 echo state.game.toMove(%*(sp, clickedPos, mcpNone))
-                 state.makeMove((sp, clickedPos, mcpNone)))
+                 let move = mv(sp, clickedPos, mcpNone)
+                 state.makeMove(move)
+                 discard cl.rpc.client.call("gamemove", %* move))
            else:
              if clickedPos.hasPiece():
-               state.selectedPosition = some(clickedPos)
-               init(state.highlightedPositions)
-               for move in state.currentLegalMoves:
-                 if move.fromPos == clickedPos:
-                   state.highlightedPositions.incl(move.toPos)
+               state.click(clickedPos)
+               state.selectPosition(clickedPos)
 
-proc render(state: MCGameView): VNode =
+proc renderGame(client: MCClient): VNode =
+  let state = client.view.get()
   var game = state.game
 
   # See comment on drawGameView... bleh. It even makes me have to do
@@ -157,8 +157,9 @@ proc render(state: MCGameView): VNode =
     10)
 
   var actionableBoards: HashSet[MCLatticeNode[MCBoard]]
-  for move in state.currentLegalMoves:
-    actionableBoards.incl(move.fromPos.node)
+  for mpos, moves in state.currentLegalMoves:
+    if len(moves) > 0:
+      actionableBoards.incl(mpos.node)
 
   result = buildHtml(tdiv):
     if state.isSinglePlayer():
@@ -174,7 +175,7 @@ proc render(state: MCGameView): VNode =
         let h = (node.board.numRanks + 2) * (squareSizePixels)
 
         tdiv(class="board-container", style=getBoardContainerStyle(x * w, y * h)):
-          let onclick = squareOnClick(state)
+          let onclick = squareOnClick(client)
           var boardClass = "board"
           if isActionable: boardClass &= " board-actionable"
           tdiv(class=boardClass, onclick=onclick):
@@ -194,11 +195,11 @@ proc render(state: MCGameView): VNode =
                        posx=kstring($x),
                        posy=kstring($y))
 
-                  if state.isHighlighted(elPos):
+                  if state.isPossibleMove(elPos):
                       tdiv(class="highlight highlight-move")
                   if state.isSelected(elPos):
                       tdiv(class="highlight highlight-select")
-                  if state.isChecked(elPos):
+                  if state.isChecked(elPos) or state.isHighlighted(elPos):
                       tdiv(class="highlight highlight-check")
 
               br()
@@ -218,7 +219,7 @@ proc render(cl: MCClient): VNode =
         br()
         render(cl.boardEditor)
       of stGame, stGameEnd:
-        render(cl.view.get())
+        renderGame(cl)
 
 
 proc renderPieceTest(): VNode =

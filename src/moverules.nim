@@ -114,3 +114,9 @@ iterator getAllLegalMoves*(rootNode: MCLatticeNode[MCBoard]): MCMove =
   for move in rootNode.getAllPseudoLegalMoves():
     if rootNode.isMoveLegal(move):
       yield move
+
+iterator getAllLegalMovesAt*(rootNode: MCLatticeNode[MCBoard], pos: MCPosition): MCMove =
+  if pos.node.needsMove:
+    for move in pos.getPseudoLegalMoves():
+      if rootNode.isMoveLegal(move):
+        yield move
