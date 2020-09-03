@@ -218,9 +218,16 @@ proc render(cl: MCClient): VNode =
   result = buildHtml(tdiv):
     case cl.status:
       of stConfig:
-        tdiv(class="client-peer-id"):
+        if not cl.id.isNil:
           text "peer id: "
           text cl.id
+        if cl.peerid.isNil:
+          text " not connected."
+        else:
+          text " connected to "
+          text cl.peerid
+
+        br()
         text "multichess!"
         br()
         text "start a game!"
@@ -256,17 +263,17 @@ proc sendGameInit(client: MCClient): JsonNode {.async.} =
   let gameInitMessage = GameInitMessage(
     opponentId: $client.id,
     board: client.view.get().game.rootNode.board,
-    color: client.pcolor)
+    color: oppositeColor(client.pcolor))
 
   let resp = await client.rpc.client.call("gameinit", %* gameInitMessage)
 
 proc onConnectionOpen(client: MCClient, conn: DataConnection) {.async.} =
+  client.peerid = conn.peer
+  redraw()
   if not client.master:
     return
   if not client.view.isSome():
     return
-  
-  echo "game init response ", client.sendGameInit()
 
 proc onConnectionClose(client: MCClient, conn: DataConnection) =
   echo "connection closed with ", conn.peer
@@ -276,9 +283,20 @@ proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
   client.rpcInitialized = true
   client.rpc.server.register("gameinit") do (arg: JsonNode) -> JsonNode:
     let msg = to(arg, GameInitMessage)
-    echo msg.board
+    let pcolor = msg.color
+    echo "GAMEINIT ", arg
+    client.status = stGame
+    client.view = some(newGameView(initGame(msg.board), some(pcolor)))
+    redraw()
     %*"ok"
-    
+
+  client.rpc.server.register("gamemove") do (arg: JsonNode) -> JsonNode:
+    echo "GAMEMOVE ", arg
+    let view = client.view.get()
+    let move = view.game.toMove(arg)
+    view.makeMove(move)
+    redraw()
+    %*"ok"
                              
   conn.on("data", proc(data: cstring) = recv(client.rpc, data))
 
@@ -317,6 +335,9 @@ proc main() {.async.} =
 
     client.status = stGame
     client.view = some(newGameView(initGame(b), pcolor))
+
+    if client.rpcInitialized:
+      discard client.sendGameInit()
 
   p.on("open", proc(id: cstring) =
                  discard initPeer(p, id, client)
