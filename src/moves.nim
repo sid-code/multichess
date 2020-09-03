@@ -94,10 +94,12 @@ proc `==>`(pos: MCPosition, dir: (MCAxis, MCAxisDirection)): seq[MCPosition] =
 
 # For some reason the JS target doesn't like this proc being anonymous
 # inside the iterator, so we have a strange explicit definition here.
-proc withUpDir(ax: MCAxis): (MCAxis, MCAxisDirection) = (ax, mcdUp)
 iterator possiblePaths(axes: seq[MCAxis]): seq[(MCAxis, MCAxisDirection)] =
   for combo in combinations(toSeq(countup(0, len(axes)-1))):
-    var res = axes.map(withUpDir)
+    var res: seq[(MCAxis, MCAxisDirection)]
+    for ax in axes:
+      res.add((ax, mcdUp))
+
     for el in combo:
       let (ax, _) = res[el]
       res[el] = (ax, mcdDown)
@@ -106,11 +108,21 @@ iterator possiblePaths(axes: seq[MCAxis]): seq[(MCAxis, MCAxisDirection)] =
 proc getPositionsAtPath(pos: MCPosition, path: seq[(MCAxis, MCAxisDirection)]): seq[MCPosition] =
   var prev = @[pos]
   for dir in path:
-    result = @[]
-    let (d, f) = dir
+    when defined(js):
+      asm """
+`result` = [];
+"""
+    else:
+      result = @[]
     for pos in prev:
-      result.add(toSeq(getAdjacentPositions(pos, d, f)))
-    prev = result
+      for apos in getAdjacentPositions(pos, dir[0], dir[1]):
+        result.add(apos)
+    when defined(js):
+      asm """
+`prev` = `result`;
+"""
+    else:
+      prev = result
 
 proc checkIfPawnMoved(p: MCPosition): bool =
   false  # TODO
@@ -127,6 +139,13 @@ proc isLegal*(m: MCMove): bool =
   ## `getPseudoLegalMoves`.
 
   return true
+
+
+const axisPairs = static:
+  toSeq(combinations(mcAxes, 2))
+const axisCombos = static:
+  assert(len(mcAxes) == 4)
+  toSeq(combinations(mcAxes))
 
 iterator getPseudoLegalMoves*(p: MCPosition): MCMove =
   ## Iterate over "pseudo-legal" moves. These include moves that are
@@ -151,7 +170,7 @@ defMovement mcpKnight:
               result.add(moveTo(p3))
 
 defMovement mcpBishop:
-  for dirs in combinations(mcAxes, 2):
+  for dirs in axisPairs:
     # one bishop "move" is going one step in any two distinct axes.
     for f1 in mcAxisDirections:
       for f2 in mcAxisDirections:
@@ -182,8 +201,7 @@ defMovement mcpRook:
 
 defMovement mcpQueen:
   # Just in case this changes
-  assert(len(mcAxes) == 4)
-  for combo in combinations(mcAxes):
+  for combo in axisCombos:
     for path in combo.possiblePaths():
       var frontier = @[pos]
       while len(frontier) > 0:
@@ -198,8 +216,7 @@ defMovement mcpQueen:
 
 defMovement mcpKing:
   # TODO: Castling??
-  assert(len(mcAxes) == 4)
-  for combo in combinations(mcAxes):
+  for combo in axisCombos:
     for path in combo.possiblePaths():
       for p1 in pos.getPositionsAtPath(path):
         if p1.isBlocked: continue
