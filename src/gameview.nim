@@ -69,8 +69,8 @@ proc calcMoves(cs: MCGameView) =
   cs.clearLegalMoves()
   for move in getAllLegalMoves(cs.game.rootNode):
     if cs.playerColor.isNone() or move.fromPos.getSquare().color == cs.playerColor.get():
-      if cs.currentLegalMoves.hasKeyOrPut(move.fromPos, @[]):
-        cs.currentLegalMoves[move.fromPos].add(move)
+      discard cs.currentLegalMoves.hasKeyOrPut(move.fromPos, @[])
+      cs.currentLegalMoves[move.fromPos].add(move)
 
 proc calcMovesAt(cs: MCGameView, p: MCPosition) =
   if p in cs.currentLegalMoves:
