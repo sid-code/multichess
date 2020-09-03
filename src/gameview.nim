@@ -3,7 +3,11 @@ import options, sets, tables, random
 from sugar import `=>`
 
 type
+  MCGameViewConfig = object
+    lazyLoadMoves*: bool
+
   MCGameView* = ref object
+    config*: MCGameViewConfig
     game*: MCGame
     playerColor*: Option[MCPlayerColor]
     layout*: MCLatticeLayout
@@ -16,14 +20,8 @@ type
     highlightedPositions: HashSet[MCPosition]
     possibleMovePositions: HashSet[MCPosition]
 
-proc newGameView*(game: MCGame, color = none[MCPlayerColor]()): MCGameView =
-  result = MCGameView(
-    playerColor: color,
-    currentLegalMoves: initTable[MCPosition, seq[MCMove]](),
-    selectedPosition: none[MCPosition](),
-    highlightedPositions: initHashSet[MCPosition](),
-    possibleMovePositions: initHashSet[MCPosition]())
-  result.update(game)
+proc initGameViewConfig*(): MCGameViewConfig =
+  result.lazyLoadMoves = false
 
 proc clearSelection*(cs: MCGameView) =
   cs.selectedPosition = none[MCPosition]()
@@ -100,7 +98,19 @@ proc update*(cs: MCGameView, game: MCGame) =
   cs.clearLegalMoves()
   cs.calcLayout()
   cs.findCheck()
+  if not cs.config.lazyLoadMoves or len(cs.checks) > 0:
+    cs.calcMoves()
   cs.clearSelection()
+
+proc newGameView*(game: MCGame, config = initGameViewConfig(), color = none[MCPlayerColor]()): MCGameView =
+  result = MCGameView(
+    config: config,
+    playerColor: color,
+    currentLegalMoves: initTable[MCPosition, seq[MCMove]](),
+    selectedPosition: none[MCPosition](),
+    highlightedPositions: initHashSet[MCPosition](),
+    possibleMovePositions: initHashSet[MCPosition]())
+  result.update(game)
 
 proc makeMove*(cs: MCGameView, move: MCMove) =
   discard cs.game.makeMove(move)
