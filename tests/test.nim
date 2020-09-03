@@ -9,7 +9,7 @@ suite "piece movement":
     let r = 5
     let squares = newSeq[MCSquare](f * r)
     let sp = MCBoard(numFiles: 5, numRanks: 5, squares: squares)
-    var g = initGame(sp)
+    var g = newGame(sp)
 
   test "knight moves":
     let kp = pos(g.rootNode, 2, 2)
@@ -167,7 +167,7 @@ suite "timelines":
     check(n111.nextSibling == n121)
 
   test "branched nodes arrange themselves properly v2":
-    var g = initGame(mcKQOnly5x5)
+    var g = newGame(mcKQOnly5x5)
     let n0 = g.rootNode
     let n1 = g.makeMove(mv(pos(n0, 1, 0), pos(n0, 3, 0), mcpNone))
     let n2 = g.makeMove(mv(pos(n1, 1, 4), pos(n1, 3, 4), mcpNone))
@@ -190,7 +190,7 @@ suite "game logic":
     osp[2, 2] = (mcpKnight, mccWhite)
     osp[2, 4] = (mcpKnight, mccBlack)
     osp.toPlay = mccWhite
-    var game = initGame(osp)
+    var game = newGame(osp)
     let kp = pos(game.rootNode, 2, 2)
     var moves = toSeq(game.rootNode.getAllLegalMoves())
     let n1 = game.makeMove(moves[0])
@@ -203,7 +203,7 @@ suite "game logic":
     osp[1, 1] = (mcpKnight, mccWhite)
     osp[2, 4] = (mcpRook, mccBlack)
     osp.toPlay = mccWhite
-    let game = initGame(osp)
+    let game = newGame(osp)
     let moves = toSeq(game.rootNode.getAllLegalMoves())
     for move in moves:
       # The knight must block the check
@@ -215,8 +215,8 @@ suite "game logic":
 
 suite "layout":
   setup:
-    var game = initGame(mcStartPos5x5)
-    var game2 = initGame(mcKQOnly5x5)
+    var game = newGame(mcStartPos5x5)
+    var game2 = newGame(mcKQOnly5x5)
 
   test "simple branched position layout works":
     let m0 = game.rootNode
@@ -233,7 +233,7 @@ suite "layout":
 
 suite "game dumps":
   setup:
-    var game = initGame(mcKQOnly5x5)
+    var game = newGame(mcKQOnly5x5)
     let m0 = game.rootNode
     let m1 = game.makeMove(mv(pos(m0, 2, 1), pos(m0, 2, 2), mcpNone))
     let m2 = game.makeMove(mv(pos(m1, 3, 3), pos(m1, 3, 2), mcpNone))
@@ -256,7 +256,7 @@ suite "game dumps":
 
 suite "misc":
   setup:
-    var game = initGame(mcKQOnly5x5)
+    var game = newGame(mcKQOnly5x5)
 
   test "deepcopy preserves layout":
     let m0 = game.rootNode

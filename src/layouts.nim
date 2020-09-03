@@ -89,7 +89,7 @@ when isMainModule:
 
   randomize()
   var numMoves = 100
-  var g = initGame(mcStartPos5x5)
+  var g = newGame(mcStartPos5x5)
   while numMoves > 0:
     numMoves -= 1
     

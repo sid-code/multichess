@@ -9,6 +9,6 @@ when isMainModule:
 
   sp[0, 0] = (mcpKnight, mccWhite)
 
-  let g = initGame(sp)
+  let g = newGame(sp)
   let kp = pos(g.rootNode, 0, 0)
   echo g.rootNode.board

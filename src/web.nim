@@ -296,7 +296,7 @@ proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
     let pcolor = msg.color
     echo "GAMEINIT ", arg
     client.status = stGame
-    client.view = some(newGameView(initGame(msg.board), some(pcolor)))
+    client.view = some(newGameView(newGame(msg.board), some(pcolor)))
     redraw()
     %*"ok"
 
@@ -344,7 +344,7 @@ proc main() {.async.} =
       pcolor = some(client.pcolor)
 
     client.status = stGame
-    client.view = some(newGameView(initGame(b), pcolor))
+    client.view = some(newGameView(newGame(b), pcolor))
 
     if client.rpcInitialized:
       discard client.sendGameInit()

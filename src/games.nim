@@ -2,7 +2,7 @@ import latticenodes, boards, moves, moverules, positions, pieces, streams
 import tables, json, strformat
 
 type
-  MCGame* = object
+  MCGame* = ref object
     numBoardFiles: int
     numBoardRanks: int
     startPosition: MCBoard
@@ -10,7 +10,8 @@ type
     rootNode*: MCLatticeNode[MCBoard]
     moveLog*: seq[MCMoveInfo]
 
-proc initGame*(startPos: MCBoard): MCGame =
+proc newGame*(startPos: MCBoard): MCGame =
+  new result
   result.startPosition = startPos
   result.numBoardRanks = startPos.numRanks
   result.numBoardFiles = startPos.numFiles
@@ -26,7 +27,7 @@ proc initGame*(startPos: MCBoard): MCGame =
 
   result.nodeLookup[result.rootNode.latticePos] = result.rootNode
 
-proc makeMove*(g: var MCGame, move: MCMove): MCLatticeNode[MCBoard] =
+proc makeMove*(g: MCGame, move: MCMove): MCLatticeNode[MCBoard] =
   let moveInfo = move.makeMove()
   var newNodes: seq[MCLatticeNode[MCBoard]]
   newNodes.add(moveInfo.realToNode)
@@ -39,7 +40,7 @@ proc makeMove*(g: var MCGame, move: MCMove): MCLatticeNode[MCBoard] =
   g.moveLog.add(moveInfo)
   return moveInfo.realToNode
 
-proc undoLastMove*(g: var MCGame) =
+proc undoLastMove*(g: MCGame) =
   if len(g.moveLog) == 0:
     return
 
@@ -105,7 +106,7 @@ proc readGame*(stream: Stream): MCGame =
   case format:
   of gdfJson:
     let startPos = to(parseJson(stream.readLine()), MCBoard)
-    result = initGame(startPos)
+    result = newGame(startPos)
     var moveLine = ""
     while stream.readLine(moveLine):
       discard result.makeMove(result.toMove(parseJson(moveLine)))
