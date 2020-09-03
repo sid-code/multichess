@@ -2,13 +2,6 @@ import latticenodes, boards, moves, moverules, positions, pieces
 import tables, json, strformat
 
 type
-  MCMoveInfo* = object
-    move: MCMove
-    # The node where the piece is now located
-    realToNode: MCLatticeNode[MCBoard]
-    # (Only for time jumps) the node created with a missing piece
-    newFromNode: MCLatticeNode[MCBoard]
-    
   MCGame* = object
     numBoardFiles: int
     numBoardRanks: int

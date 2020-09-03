@@ -10,6 +10,13 @@ type
     toPos: MCPosition
     promotion: MCPiece
 
+  MCMoveInfo* = object
+    move*: MCMove
+    # The node where the piece is now located
+    realToNode*: MCLatticeNode[MCBoard]
+    # (Only for time jumps) the node created with a missing piece
+    newFromNode*: MCLatticeNode[MCBoard]
+
   MCMoveRule = proc(node: MCLatticeNode[MCBoard], pos: MCPosition): seq[MCMove]
 
 proc hash*(m: MCMove): Hash =
