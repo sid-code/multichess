@@ -190,8 +190,8 @@ proc renderGame(client: MCClient): VNode =
           if isActionable: boardClass &= " board-actionable"
           tdiv(class=boardClass, onclick=onclick):
             let board = node.board
-            for r in countdown(board.numRanks-1, 0):
-              for f in countup(0, board.numFiles-1):
+            for r in countdown(board.numRanks - 1, 0):
+              for f in countup(0, board.numFiles - 1):
                 let blackSquareClass = if (f + r) mod 2 == 0:
                                          kstring("square square-black")
                                        else:
