@@ -1,6 +1,6 @@
 import unittest
 import latticenodes, boards, games, pieces, positions, playercolors, moves, moverules, startpos, layouts
-import sequtils, tables
+import sequtils, tables, streams
 from sugar import `=>`
 
 suite "piece movement":
@@ -231,6 +231,28 @@ suite "layout":
     #let l = layout(game.rootNode)
     # TODO: test something here
 
+suite "game dumps":
+  setup:
+    var game = initGame(mcKQOnly5x5)
+    let m0 = game.rootNode
+    let m1 = game.makeMove(mv(pos(m0, 2, 1), pos(m0, 2, 2), mcpNone))
+    let m2 = game.makeMove(mv(pos(m1, 3, 3), pos(m1, 3, 2), mcpNone))
+    let m3 = game.makeMove(mv(pos(m2, 3, 0), pos(m0, 3, 2), mcpNone))
+    let m4 = game.makeMove(mv(pos(m3, 3, 4), pos(m1, 3, 2), mcpNone))
+    let m5 = game.makeMove(mv(pos(m4, 3, 0), pos(m0, 3, 2), mcpNone))
+
+  test "game dump/load preserves layout":
+    let l = layout(game.rootNode)
+
+    var stream = newStringStream()
+    stream.write(game)
+    var readStream = newStringStream(stream.data)
+    let gameCopy = readStream.readGame()
+
+    let lc = layout(gameCopy.rootNode)
+
+    for np, node in l.placement:
+      check(lc.placement[np].latticePos == node.latticePos)
 
 suite "misc":
   setup:
