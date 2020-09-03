@@ -13,9 +13,15 @@ html, body {
     height: 100%;
 }
 
+.client-controls {
+    position: fixed;
+    z-index: 20;
+}
+
 .client-container {
     position: relative;
     z-index: 2;
+    top: 40px;
 }
 
 .board-container {
