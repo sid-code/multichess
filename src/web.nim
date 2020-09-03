@@ -171,10 +171,21 @@ proc renderGame(client: MCClient): VNode =
       actionableBoards.incl(mpos.node)
 
   result = buildHtml(tdiv):
-    if state.isSinglePlayer():
-      button(onclick=proc() = state.undoLastMove()):
-        text "oops"
-      
+    tdiv(class="client-controls"):
+      button(onclick=proc() = discard state.makeRandomMove()):
+        text "I'm feeling lucky"
+      if state.isSinglePlayer():
+        button(onclick=proc() = state.undoLastMove()):
+          text "oops"
+      if len(state.checks) > 0:
+        button(onclick=proc() = state.highlightCheckingPieces()):
+          text "highlight checking pieces"
+      button:
+        text "copy game to clipboard"
+        proc onclick(e: Event, n: VNode) =
+          client.dumpGameToClipboard()
+          e.target.innerText = "copied!"
+
     tdiv(class="client-container"):
       canvas(class="client-hints", id="backdrop")
       for np, node in state.layout.placement:
