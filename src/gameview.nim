@@ -16,6 +16,15 @@ type
     highlightedPositions: HashSet[MCPosition]
     possibleMovePositions: HashSet[MCPosition]
 
+proc newGameView*(game: MCGame, color = none[MCPlayerColor]()): MCGameView =
+  result = MCGameView(
+    playerColor: color,
+    currentLegalMoves: initTable[MCPosition, seq[MCMove]](),
+    selectedPosition: none[MCPosition](),
+    highlightedPositions: initHashSet[MCPosition](),
+    possibleMovePositions: initHashSet[MCPosition]())
+  result.update(game)
+
 proc clearSelection*(cs: MCGameView) =
   cs.selectedPosition = none[MCPosition]()
   init(cs.possibleMovePositions)
@@ -99,15 +108,6 @@ proc makeMove*(cs: MCGameView, move: MCMove) =
 proc undoLastMove*(cs: MCGameView) =
   cs.game.undoLastMove()
   cs.update(cs.game)
-
-proc newGameView*(game: MCGame, color = none[MCPlayerColor]()): MCGameView =
-  result = MCGameView(
-    playerColor: color,
-    currentLegalMoves: initTable[MCPosition, seq[MCMove]](),
-    selectedPosition: none[MCPosition](),
-    highlightedPositions: initHashSet[MCPosition](),
-    possibleMovePositions: initHashSet[MCPosition]())
-  result.update(game)
 
 proc makeRandomMove*(cs: MCGameView): MCMove =
   cs.calcMoves()
