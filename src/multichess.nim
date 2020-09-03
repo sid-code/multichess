@@ -12,5 +12,3 @@ when isMainModule:
   let g = initGame(sp)
   let kp = pos(g.rootNode, 0, 0)
   echo g.rootNode.board
-  for move in getPseudoLegalMoves(kp):
-    echo move

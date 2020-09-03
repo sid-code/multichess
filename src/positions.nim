@@ -1,8 +1,10 @@
+{.experimental: "notnil".}
 import latticenodes, boards
-import hashes
+import hashes, strformat
 
 type
-  MCPosition* = object
+  MCPosition* = ref MCPositionObj not nil
+  MCPositionObj* = object
     node*: MCLatticeNode[MCBoard]
     file*: int
     rank*: int
@@ -18,9 +20,16 @@ proc pos*(node: MCLatticeNode, file: int, rank: int): MCPosition =
   if isNil(node):
     raise newException(ValueError, "cannot construct position with nil node")
   else:
+    new result
     result.node = node
     result.file = file
     result.rank = rank
+
+proc `$`*(p: MCPosition): string =
+  fmt"[{p.node}: {p.file}, {p.rank}]"
+
+proc `==`*(p1, p2: MCPosition): bool =
+  p1.node == p2.node and p1.file == p2.file and p1.rank == p2.rank
 
 iterator getAdjacentPositions*(pos: MCPosition, dir: MCAxis,
     cdir: MCAxisDirection): MCPosition =

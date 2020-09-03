@@ -2,13 +2,14 @@
 
 import positions, pieces, latticenodes, boards, playercolors
 import combinations
-import tables, sequtils, hashes, json
+import tables, sequtils, hashes, json, strformat
 
 type
-  MCMove* = tuple
-    fromPos: MCPosition
-    toPos: MCPosition
-    promotion: MCPiece
+  MCMove* = ref MCMoveObj not nil
+  MCMoveObj* = object
+    fromPos*: MCPosition
+    toPos*: MCPosition
+    promotion*: MCPiece
 
   MCMoveInfo* = object
     move*: MCMove
@@ -18,6 +19,15 @@ type
     newFromNode*: MCLatticeNode[MCBoard]
 
   MCMoveRule = proc(node: MCLatticeNode[MCBoard], pos: MCPosition): seq[MCMove]
+
+proc mv*(fromPos: MCPosition, toPos: MCPosition, promotion: MCPiece): MCMove =
+  MCMove(fromPos: fromPos, toPos: toPos, promotion: promotion)
+
+proc `$`*(m: MCMove): string =
+  fmt"move({m.fromPos} to {m.toPos})"
+proc `==`*(m1, m2: MCMove): bool =
+  m1.fromPos == m2.fromPos and m1.toPos == m2.toPos and
+  m1.promotion == m2.promotion
 
 proc hash*(m: MCMove): Hash =
   var h: Hash = 0
@@ -34,33 +44,36 @@ template defMovement*(p: MCPiece, body: untyped) {.dirty.} =
     var pos = pos
     pos.node = node
     # utility procs
-    proc isBlocked(apos: MCPosition): bool {.used.} =
+    template isBlocked(apos: MCPosition): bool {.used.} =
       hasPieceOfSameColor(pos, apos)
-    proc moveTo(apos: MCPosition): MCMove {.used.} =
-      (pos, apos, mcpNone)
-    proc moveToAndPromote(apos: MCPosition, promotion: MCPiece): MCMove {.used.} =
-      (pos, apos, promotion)
+    template moveTo(apos: MCPosition): MCMove {.used.} =
+      mv(pos, apos, mcpNone)
+    template moveToAndPromote(apos: MCPosition, promotion: MCPiece): MCMove {.used.} =
+      mv(pos, apos, promotion)
 
     body
 
-proc hasPiece*(sq: MCSquare): bool =
+# These have to be templates because the JS backend doesn't support
+# inline
+template hasPiece*(sq: MCSquare): bool =
   sq.piece != mcpNone
 
-proc hasPiece*(p: MCPosition): bool =
+template hasPiece*(p: MCPosition): bool =
   p.getSquare().hasPiece()
 
-proc isCapture*(m: MCMove): bool =
+template isCapture*(m: MCMove): bool =
   let fromSquare = m.fromPos.getSquare()
   let toSquare = m.toPos.getSquare()
   if not fromSquare.hasPiece:
-    return false
-  return toSquare.hasPiece and toSquare.color != fromSquare.color
+    false
+  else:
+    toSquare.hasPiece and toSquare.color != fromSquare.color
 
-proc isTimeJump*(m: MCMove): bool =
-  return m.fromPos.node != m.toPos.node
+template isTimeJump*(m: MCMove): bool =
+  m.fromPos.node != m.toPos.node
 
 
-proc hasPieceOfSameColor(p1, p2: MCPosition): bool =
+template hasPieceOfSameColor(p1, p2: MCPosition): bool =
   ## Returns true if p1 and p2 both contain a piece of the same color.
   p1.hasPiece() and p2.hasPiece() and
     p1.getSquare().color == p2.getSquare().color

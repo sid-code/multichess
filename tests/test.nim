@@ -169,11 +169,11 @@ suite "timelines":
   test "branched nodes arrange themselves properly v2":
     var g = initGame(mcKQOnly5x5)
     let n0 = g.rootNode
-    let n1 = g.makeMove((pos(n0, 1, 0), pos(n0, 3, 0), mcpNone))
-    let n2 = g.makeMove((pos(n1, 1, 4), pos(n1, 3, 4), mcpNone))
-    let n3 = g.makeMove((pos(n2, 3, 0), pos(n0, 3, 0), mcpNone))
-    let n4 = g.makeMove((pos(n3, 1, 4), pos(n1, 2, 3), mcpNone))
-    let n5 = g.makeMove((pos(n4, 3, 0), pos(n0, 4, 0), mcpNone))
+    let n1 = g.makeMove(mv(pos(n0, 1, 0), pos(n0, 3, 0), mcpNone))
+    let n2 = g.makeMove(mv(pos(n1, 1, 4), pos(n1, 3, 4), mcpNone))
+    let n3 = g.makeMove(mv(pos(n2, 3, 0), pos(n0, 3, 0), mcpNone))
+    let n4 = g.makeMove(mv(pos(n3, 1, 4), pos(n1, 2, 3), mcpNone))
+    let n5 = g.makeMove(mv(pos(n4, 3, 0), pos(n0, 4, 0), mcpNone))
     check(g.rootNode.future[0] ==
           g.rootNode.future[0].prevSibling.prevSibling.nextSibling.nextSibling)
 
@@ -220,13 +220,13 @@ suite "layout":
 
   test "simple branched position layout works":
     let m0 = game.rootNode
-    let m1 = game.makeMove((pos(m0, 2, 1), pos(m0, 2, 2), mcpNone))
-    let m2 = game.makeMove((pos(m1, 3, 3), pos(m1, 3, 2), mcpNone))
-    let m3 = game.makeMove((pos(m2, 3, 0), pos(m0, 3, 2), mcpNone))
+    let m1 = game.makeMove(mv(pos(m0, 2, 1), pos(m0, 2, 2), mcpNone))
+    let m2 = game.makeMove(mv(pos(m1, 3, 3), pos(m1, 3, 2), mcpNone))
+    let m3 = game.makeMove(mv(pos(m2, 3, 0), pos(m0, 3, 2), mcpNone))
     check(not m3.nextSibling.isNil)
     # m3 is the node with the extra white knight
-    let m4 = game.makeMove((pos(m3, 3, 4), pos(m1, 3, 2), mcpNone))
-    let m5 = game.makeMove((pos(m4, 3, 0), pos(m0, 3, 2), mcpNone))
+    let m4 = game.makeMove(mv(pos(m3, 3, 4), pos(m1, 3, 2), mcpNone))
+    let m5 = game.makeMove(mv(pos(m4, 3, 0), pos(m0, 3, 2), mcpNone))
 
     #let l = layout(game.rootNode)
     # TODO: test something here
@@ -238,11 +238,11 @@ suite "misc":
 
   test "deepcopy preserves layout":
     let m0 = game.rootNode
-    let m1 = game.makeMove((pos(m0, 2, 1), pos(m0, 2, 2), mcpNone))
-    let m2 = game.makeMove((pos(m1, 3, 3), pos(m1, 3, 2), mcpNone))
-    let m3 = game.makeMove((pos(m2, 3, 0), pos(m0, 3, 2), mcpNone))
-    let m4 = game.makeMove((pos(m3, 3, 4), pos(m1, 3, 2), mcpNone))
-    let m5 = game.makeMove((pos(m4, 3, 0), pos(m0, 3, 2), mcpNone))
+    let m1 = game.makeMove(mv(pos(m0, 2, 1), pos(m0, 2, 2), mcpNone))
+    let m2 = game.makeMove(mv(pos(m1, 3, 3), pos(m1, 3, 2), mcpNone))
+    let m3 = game.makeMove(mv(pos(m2, 3, 0), pos(m0, 3, 2), mcpNone))
+    let m4 = game.makeMove(mv(pos(m3, 3, 4), pos(m1, 3, 2), mcpNone))
+    let m5 = game.makeMove(mv(pos(m4, 3, 0), pos(m0, 3, 2), mcpNone))
 
     let l = layout(game.rootNode)
 

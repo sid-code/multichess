@@ -86,6 +86,7 @@ proc toNode*(g: MCGame, n: JsonNode): MCLatticeNode[MCBoard] =
     raise newException(ValueError, fmt"failed to locate node at {latticePos}")
 
 proc toPos*(g: MCGame, n: JsonNode): MCPosition =
+  new result
   result.node = g.toNode(n["node"])
   let fileN = n["file"]
   let rankN = n["rank"]
@@ -99,6 +100,7 @@ proc toPos*(g: MCGame, n: JsonNode): MCPosition =
   result.rank = n["rank"].getInt()
 
 proc toMove*(g: MCGame, n: JsonNode): MCMove =
+  new result
   result.fromPos = g.toPos(n["fromPos"])
   result.toPos = g.toPos(n["toPos"])
   result.promotion = to(n["promotion"], MCPiece)

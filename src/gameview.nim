@@ -70,6 +70,10 @@ proc undoLastMove*(cs: MCGameView) =
   cs.update(cs.game)
 
 proc newGameView*(game: MCGame, color = none[MCPlayerColor]()): MCGameView =
-  new result
-  result.playerColor = color
+  result = MCGameView(
+    playerColor: color,
+    currentLegalMoves: initTable[MCPosition, seq[MCMove]](),
+    selectedPosition: none[MCPosition](),
+    highlightedPositions: initHashSet[MCPosition](),
+    possibleMovePositions: initHashSet[MCPosition]())
   result.update(game)
