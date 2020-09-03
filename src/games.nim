@@ -1,4 +1,4 @@
-import latticenodes, boards, moves, moverules, positions, pieces
+import latticenodes, boards, moves, moverules, positions, pieces, streams
 import tables, json, strformat
 
 type
@@ -84,3 +84,32 @@ proc toMove*(g: MCGame, n: JsonNode): MCMove =
   result.fromPos = g.toPos(n["fromPos"])
   result.toPos = g.toPos(n["toPos"])
   result.promotion = to(n["promotion"], MCPiece)
+
+type
+  GameDumpFormat* = enum
+    gdfJson = 'J', gdfTerse = 'T'
+
+  GameLoadError* = object of ValueError
+
+proc write*(stream: Stream, g: MCGame, format = gdfJson) =
+  # Magic constant to denote that this is the verbose JSON
+  # format. There are plans to add a more terse format in the future,
+  # so this will allow for easy backwards compatibility.
+  stream.write($char(format))
+  stream.writeLine($ %*g.startPosition)
+  for info in g.moveLog:
+    stream.writeLine($ %*info.move)
+
+proc readGame*(stream: Stream): MCGame =
+  let format = GameDumpFormat(stream.readChar())
+  case format:
+  of gdfJson:
+    let startPos = to(parseJson(stream.readLine()), MCBoard)
+    result = initGame(startPos)
+    var moveLine = ""
+    while stream.readLine(moveLine):
+      discard result.makeMove(result.toMove(parseJson(moveLine)))
+  of gdfTerse:
+    raise newException(GameLoadError, "terse game dump format not supported yet, sorry")
+  else:
+    raise newException(GameLoadError, fmt"invalid game dump format: {format}")
