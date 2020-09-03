@@ -27,44 +27,24 @@ proc initGame*(startPos: MCBoard): MCGame =
   result.nodeLookup[result.rootNode.latticePos] = result.rootNode
 
 proc makeMove*(g: var MCGame, move: MCMove): MCLatticeNode[MCBoard] =
-  let newNodes = move.makeMove()
+  let moveInfo = move.makeMove()
+  var newNodes: seq[MCLatticeNode[MCBoard]]
+  newNodes.add(moveInfo.realToNode)
+  if not moveInfo.newFromNode.isNil:
+     newNodes.add(moveInfo.newFromNode)
 
   for node in newNodes:
     g.nodeLookup[node.latticePos] = node
 
-  let newToNode = newNodes[0] # This is a convention
-  let newFromNode = if len(newNodes) == 1:
-                      nil
-                    else:
-                      newNodes[1]
+  g.moveLog.add(moveInfo)
+  return moveInfo.realToNode
 
-  g.moveLog.add(MCMoveInfo(move: move,
-                           realToNode: newToNode,
-                           newFromNode: newFromNode))
-  return newToNode
-
-
-# It may seem strange to delegate the gory details of making moves to
-# some other makeMove function but then go ahead and undo moves with
-# this function. The fact is, undoing a move requires a bit more
-# information than the move itself contains.
 proc undoLastMove*(g: var MCGame) =
   if len(g.moveLog) == 0:
     return
 
   let lastMoveInfo = g.moveLog.pop()
-  let lastMove = lastMoveInfo.move
-  let realToNode = lastMoveInfo.realToNode
-  # For normal moves, this should be all there is to do
-  realToNode.unlinkLeaf()
-  if lastMove.isTimeJump():
-    # This is where the piece moved
-    let moved = realToNode.board[lastMove.toPos]
-    # Put it back where it was
-    lastMove.fromPos.node.board[lastMove.fromPos] = moved
-    let newFromNode = lastMoveInfo.newFromNode
-    assert(not newFromNode.isNil)
-    newFromNode.unlinkLeaf()
+  lastMoveInfo.undoMove()
 
 proc getByLatticePos*(g: MCGame, pos: seq[int]): MCLatticeNode[MCBoard] =
   g.nodeLookup.getOrDefault(pos, nil)

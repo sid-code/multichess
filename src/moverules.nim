@@ -37,7 +37,10 @@ proc isMoveBlatantlyIllegal(m: MCMove): bool =
   if toSquare.hasPiece and toSquare.color == fromSquare.color:
     return true
 
-proc makeMove*(move: MCMove): seq[MCLatticeNode[MCBoard]] =
+proc makeMove*(move: MCMove): MCMoveInfo =
+  result.move = move
+  result.realToNode = nil
+  result.newFromNode = nil
   let fromPos = move.fromPos
   let toPos = move.toPos
   let square = fromPos.getSquare()
@@ -59,13 +62,28 @@ proc makeMove*(move: MCMove): seq[MCLatticeNode[MCBoard]] =
   bcopy[toPos.file, toPos.rank] = square
   bcopy.toPlay = otherPlayer
 
-  result.add(toPos.node.branch(bcopy, preferredSiblingDirection))
+  result.realToNode = toPos.node.branch(bcopy, preferredSiblingDirection)
 
   if move.isTimeJump:
     let newFromNode = fromNode.branch(fromNode.board, preferredSiblingDirection)
     newFromNode.board[fromPos.file, fromPos.rank] = (mcpNone, mccWhite)
     newFromNode.board.toPlay = otherPlayer
-    result.add(newFromNode)
+    result.newFromNode = newFromNode
+
+# WARNING: Dangerous
+proc undoMove*(info: MCMoveInfo) =
+  let lastMove = info.move
+  let realToNode = info.realToNode
+  # For normal moves, this should be all there is to do
+  realToNode.unlinkLeaf()
+  if lastMove.isTimeJump():
+    # This is where the piece moved
+    let moved = realToNode.board[lastMove.toPos]
+    # Put it back where it was
+    lastMove.fromPos.node.board[lastMove.fromPos] = moved
+    let newFromNode = info.newFromNode
+    assert(not newFromNode.isNil)
+    newFromNode.unlinkLeaf()
 
 proc checksInPosition*(rootNode: MCLatticeNode[MCBoard]): seq[MCMove] =
   for move in rootNode.getAllPossibleMoves():
@@ -74,27 +92,25 @@ proc checksInPosition*(rootNode: MCLatticeNode[MCBoard]): seq[MCMove] =
     if toSquare.piece == mcpKing and fromSquare.color == oppositeColor(toSquare.color):
       result.add(move)
 
+proc isMoveLegal*(rootNode: MCLatticeNode[MCBoard], move: MCMove): bool =
+  if move.isMoveBlatantlyIllegal():
+    result = false
+    return
+
+  let info = move.makeMove()
+
+  result = true
+
+  let checks = rootNode.checksInPosition()
+  let fromColor = move.fromPos.getSquare().color
+  for check in checks:
+    if check.toPos.getSquare().color == fromColor:
+      result = false
+      break
+
+  info.undoMove()
+
 iterator getAllLegalMoves*(rootNode: MCLatticeNode[MCBoard]): MCMove =
   for move in rootNode.getAllPseudoLegalMoves():
-    if move.isMoveBlatantlyIllegal():
-      continue
-
-    var moveCopy = move
-    var nodeCopies = initTable[seq[int], MCLatticeNode[MCBoard]]()
-    let rootNodeCopy = deepCopyTree(rootNode, nodeCopies)
-    moveCopy.fromPos.node = nodeCopies[move.fromPos.node.latticePos]
-    moveCopy.toPos.node = nodeCopies[move.toPos.node.latticePos]
-    assert not moveCopy.fromPos.node.isNil
-    assert not moveCopy.toPos.node.isNil
-    discard moveCopy.makeMove()
-
-    var isIllegal = false
-
-    let checks = rootNodeCopy.checksInPosition()
-    let fromColor = moveCopy.fromPos.getSquare().color
-    for check in checks:
-      if check.toPos.getSquare().color == fromColor:
-        isIllegal = true
-
-    if not isIllegal:
+    if rootNode.isMoveLegal(move):
       yield move
