@@ -110,14 +110,20 @@ proc drawGameView(state: MCGameView, canvas: Canvas) =
     
   for node, np in placement:
     let (cx, cy) = center(node)
-    ctx.strokeStyle = "10px solid black"
 
     for child in node.future:
       let (ccx, ccy) = center(child)
+      ctx.strokeStyle = "blue"
       ctx.moveTo(cx, cy)
       ctx.lineTo(ccx, ccy)
       ctx.stroke()
-    
+    if not node.nextSibling.isNil:
+      let (ccx, ccy) = center(node.nextSibling)
+      ctx.strokeStyle = "green"
+      ctx.moveTo(cx, cy)
+      ctx.lineTo(ccx, ccy)
+      ctx.stroke()
+
 proc squareOnClick(cl: MCClient): proc(ev: Event, n: Vnode) =
   let state = cl.view.get()
   return proc(ev: Event, n: VNode) {.closure.} =
