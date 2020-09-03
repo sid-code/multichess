@@ -6,7 +6,7 @@ import jsffi, dom
 import html5_canvas
 import peerjs
 include multichess
-import piececlasses, boardeditor, gameview, rpcs
+import piececlasses, boardeditor, gameview, rpcs, clipboard
 
 # Constants
 
@@ -48,6 +48,12 @@ proc newMCClient(): MCClient =
   result.id = nil
   result.peerid = nil
   result.pcolor = rand(mccWhite..mccBlack)
+
+proc dumpGameToClipboard(cl: MCClient) =
+  cl.view.map do (v: MCGameView):
+    let s = newStringStream()
+    s.write(v.game)
+    copyToClipboard(s.data)
 
 proc getBoardContainerStyle(left: int, top: int): VStyle =
   style(
