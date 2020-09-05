@@ -62,7 +62,7 @@ proc `$`*(b: MCBoard): string =
   else:
     result &= "Black to play."
 
-proc `%`*(b: MCSquare): JsonNode =
+proc `%`*(b: MCSquare): owned JsonNode =
   result = newJObject()
   result.fields["piece"] = %b.piece
   result.fields["color"] = %b.color
