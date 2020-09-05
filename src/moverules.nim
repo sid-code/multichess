@@ -7,7 +7,7 @@ iterator getAllPossibleMoves(rootNode: MCLatticeNode[MCBoard]): MCMove =
       for move in pos.getPseudoLegalMoves():
         yield move
 
-iterator getAllPseudoLegalMoves(rootNode: MCLatticeNode[MCBoard],
+iterator getAllPseudoLegalMoves*(rootNode: MCLatticeNode[MCBoard],
                                 otherPlayer = false): MCMove =
   for node in rootNode.getNodesNeedingMove():
     for pos in node.iterPositions():
