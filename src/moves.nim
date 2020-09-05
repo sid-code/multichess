@@ -2,7 +2,7 @@
 
 import positions, pieces, latticenodes, boards, playercolors
 import combinations
-import tables, sequtils, hashes, json, strformat
+import tables, sequtils, hashes, json, strformat, math
 
 type
   MCMove* = ref MCMoveObj not nil
@@ -92,17 +92,17 @@ proc `==>`(pos: MCPosition, dir: (MCAxis, MCAxisDirection)): seq[MCPosition] =
   for p1 in getAdjacentPositions(pos, d, f):
     result.add(p1)
 
-# For some reason the JS target doesn't like this proc being anonymous
-# inside the iterator, so we have a strange explicit definition here.
 iterator possiblePaths(axes: seq[MCAxis]): seq[(MCAxis, MCAxisDirection)] =
-  for combo in combinations(toSeq(countup(0, len(axes)-1))):
+  let n = len(axes)
+  for bitset in 0 .. 2 ^ n - 1:
     var res: seq[(MCAxis, MCAxisDirection)]
-    for ax in axes:
-      res.add((ax, mcdUp))
-
-    for el in combo:
-      let (ax, _) = res[el]
-      res[el] = (ax, mcdDown)
+    var x = bitset
+    for i in 0 .. n - 1:
+      if x mod 2 == 1:
+        res.add( (axes[i], mcdUp) )
+      else:
+        res.add( (axes[i], mcdDown) )
+      x = x shr 1
     yield res
 
 proc getPositionsAtPath(pos: MCPosition, path: seq[(MCAxis, MCAxisDirection)]): seq[MCPosition] =
