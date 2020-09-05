@@ -110,6 +110,34 @@ proc isMoveLegal*(rootNode: MCLatticeNode[MCBoard], move: MCMove): bool =
 
   info.undoMove()
 
+proc canMovesBeSimultaneous*(rootNode: MCLatticeNode[MCBoard], m1, m2: MCMove): bool =
+  ## Can two moves be played at the same time? We check this (very)
+  ## roughly by playing the moves in both orders and seeing if both
+  ## are valid situations. Even if the resulting positions are
+  ## different, it _should_ be fine to arbitrarily choose an order.
+  var nodeCopies: Table[seq[int], MCLatticeNode[MCBoard]]
+  let c1 = rootNode.deepCopyTree(nodeCopies)
+  let fpn1 = nodeCopies[m1.fromPos.node.latticePos]
+  let fpn2 = nodeCopies[m2.fromPos.node.latticePos]
+  let tpn1 = nodeCopies[m1.toPos.node.latticePos]
+  let tpn2 = nodeCopies[m2.toPos.node.latticePos]
+  let m1c = mv(pos(fpn1, m1.fromPos.file, m1.fromPos.rank),
+               pos(tpn1, m1.toPos.file, m1.toPos.rank),
+               m1.promotion)
+  let m2c = mv(pos(fpn2, m2.fromPos.file, m2.fromPos.rank),
+               pos(tpn2, m2.toPos.file, m2.toPos.rank),
+               m2.promotion)
+
+  if not c1.isMoveLegal(m1c): return false
+  let i1 = m1c.makeMove()
+  if not c1.isMoveLegal(m2c): return false
+  i1.undoMove()
+  if not c1.isMoveLegal(m2c): return false
+  let i2 = m2c.makeMove()
+  if not c1.isMoveLegal(m1c): return false
+  return true
+
+
 iterator getAllLegalMoves*(rootNode: MCLatticeNode[MCBoard]): MCMove =
   for move in rootNode.getAllPseudoLegalMoves():
     if rootNode.isMoveLegal(move):
