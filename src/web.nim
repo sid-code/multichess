@@ -186,6 +186,14 @@ proc renderGame(client: MCClient): VNode =
           client.dumpGameToClipboard()
           e.target.innerText = "copied!"
 
+      button:
+        proc onclick() =
+          state.config.lazyLoadMoves = not state.config.lazyLoadMoves
+
+        if state.config.lazyLoadMoves:
+          text "eagerly load moves":
+        else:
+          text "lazy load moves"
     tdiv(class="client-container"):
       canvas(class="client-hints", id="backdrop")
       for np, node in state.layout.placement:
