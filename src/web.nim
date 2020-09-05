@@ -181,10 +181,15 @@ proc renderGame(client: MCClient): VNode =
         button(onclick=proc() = state.highlightCheckingPieces()):
           text "highlight checking pieces"
       button:
-        text "copy game to clipboard"
+        # TODO: refactor this into a "flashing button" thing
+        let origText = "copy game to clipboard"
+        text origText
         proc onclick(e: Event, n: VNode) =
           client.dumpGameToClipboard()
           e.target.innerText = "copied!"
+          discard window.setTimeout(
+            proc() = e.target.innerText = origText,
+            1000)
 
       button:
         proc onclick() =
