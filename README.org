@@ -10,9 +10,11 @@ these soon)
 
 * Building
 
-Have these installed:
-  - `nim` newer than version `1.2`
-  - `nimble`
+Have these installed (look into ~choosenim~ if you don't use it, it
+makes installing the below trivial):
+  - ~nim~ (as of 2020-09-06 the ~devel~ branch is needed to compile
+    ~multichess~. Unfortunately, stable version ~1.2.6~ doesn't work.)
+  - ~nimble~
 
 Then, the following command will install all of the nim dependencies
 and build this project.
