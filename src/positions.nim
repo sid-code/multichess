@@ -1,9 +1,8 @@
-{.experimental: "notnil".}
 import latticenodes, boards
 import hashes, strformat
 
 type
-  MCPosition* = ref MCPositionObj not nil
+  MCPosition* = ref MCPositionObj
   MCPositionObj* = object
     node*: MCLatticeNode[MCBoard]
     file*: int

@@ -1,11 +1,9 @@
-{.experimental: "notnil".}
-
 import positions, pieces, latticenodes, boards, playercolors
 import combinations
 import tables, sequtils, hashes, json, strformat, math
 
 type
-  MCMove* = ref MCMoveObj not nil
+  MCMove* = ref MCMoveObj
   MCMoveObj* = object
     fromPos*: MCPosition
     toPos*: MCPosition
@@ -39,7 +37,7 @@ proc hash*(m: MCMove): Hash =
 var movementRules = initTable[MCPiece, MCMoveRule]()
 
 template defMovement*(p: MCPiece, body: untyped) {.dirty.} =
-  movementRules[p] = proc (node: MCLatticeNode[MCBoard] not nil,
+  movementRules[p] = proc (node: MCLatticeNode[MCBoard],
       pos: MCPosition): seq[MCMove] =
     var pos = pos
     pos.node = node
