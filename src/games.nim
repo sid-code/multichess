@@ -112,5 +112,3 @@ proc readGame*(stream: Stream): MCGame =
       discard result.makeMove(result.toMove(parseJson(moveLine)))
   of gdfTerse:
     raise newException(GameLoadError, "terse game dump format not supported yet, sorry")
-  else:
-    raise newException(GameLoadError, fmt"invalid game dump format: {format}")
