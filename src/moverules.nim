@@ -93,9 +93,20 @@ proc checksInPosition*(rootNode: MCLatticeNode[MCBoard]): seq[MCMove] =
       result.add(move)
 
 proc isMoveLegal*(rootNode: MCLatticeNode[MCBoard], move: MCMove): bool =
+  # Check for blatant illegal-ness
   if move.isMoveBlatantlyIllegal():
-    result = false
-    return
+    return false
+  if not move.fromPos.node.needsMove():
+    return false
+
+  var found = false
+  for pmove in move.fromPos.getPseudoLegalMoves():
+    if pmove == move:
+      found = true
+      break
+
+  if not found:
+    return false
 
   let info = move.makeMove()
 
