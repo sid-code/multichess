@@ -212,6 +212,9 @@ proc renderGame(client: MCClient): VNode =
           text "eagerly load moves":
         else:
           text "lazy load moves"
+
+      if len(state.getStatusText()) > 0:
+        text " status: " & state.getStatusText()
     tdiv(class="client-container"):
       canvas(class="client-hints", id="backdrop")
       for np, node in state.layout.placement:
