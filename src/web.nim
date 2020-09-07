@@ -253,6 +253,16 @@ proc renderGame(client: MCClient): VNode =
 
               br()
 
+proc renderMadeWith(): VNode =
+  result = buildHtml(tdiv):
+    text "made with "
+    a(href="https://nim-lang.org"):
+      text "nim"
+    text " using "
+    a(href="https://peerjs.com/"):
+      text "peerjs"
+    text " to handle p2p connections."
+
 proc render(cl: MCClient): VNode =
   result = buildHtml(tdiv):
     case cl.status:
@@ -281,6 +291,8 @@ proc render(cl: MCClient): VNode =
         text "but first, a starting position"
         br()
         render(cl.boardEditor)
+        hr()
+        renderMadeWith()
       of stGame, stGameEnd:
         renderGame(cl)
 
