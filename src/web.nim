@@ -34,7 +34,7 @@ type
     board: MCBoard
     color: MCPlayerColor
 
-# Client
+### Game client (including p2p stuff)
 proc newMCClient(): MCClient =
   new result
   result.view = none[MCGameView]()
@@ -47,6 +47,69 @@ proc newMCClient(): MCClient =
   result.peerid = nil
   result.pcolor = rand(mccWhite..mccBlack)
 
+proc sendGameInit(client: MCClient): JsonNode {.async.} =
+  let gameInitMessage = GameInitMessage(
+    opponentId: $client.id,
+    board: client.view.get().game.rootNode.board,
+    color: oppositeColor(client.pcolor))
+
+  let resp = await client.rpc.client.call("gameinit", %* gameInitMessage)
+
+proc onConnectionOpen(client: MCClient, conn: DataConnection) {.async.} =
+  client.peerid = conn.peer
+  redraw()
+  if not client.master:
+    return
+  if not client.view.isSome():
+    return
+
+proc onConnectionClose(client: MCClient, conn: DataConnection) =
+  echo "connection closed with ", conn.peer
+
+proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
+  client.rpc = initSimpleRPCPeer(proc(data: cstring) = conn.send(data))
+  client.rpcInitialized = true
+  client.rpc.server.register("gameinit") do (arg: JsonNode) -> JsonNode:
+    let msg = to(arg, GameInitMessage)
+    let pcolor = msg.color
+    echo "GAMEINIT ", arg
+    client.status = stGame
+    client.view = some(newGameView(newGame(msg.board), color = some(pcolor)))
+    redraw()
+    %*"ok"
+
+  client.rpc.server.register("gamemove") do (arg: JsonNode) -> JsonNode:
+    echo "GAMEMOVE ", arg
+    let view = client.view.get()
+    let move = view.game.toMove(arg)
+    view.makeMove(move)
+    redraw()
+    %*"ok"
+
+  conn.on("data", proc(data: cstring) = recv(client.rpc, data))
+
+  conn.on("open") do (x: cstring):
+    discard client.onConnectionOpen(conn)
+
+  conn.on("close") do (x: cstring):
+    client.onConnectionClose(conn)
+  conn.on("disconnected") do (x: cstring):
+    client.onConnectionClose(conn)
+
+
+proc initPeer(client: MCClient, p: Peer, id: cstring) {.async.} =
+  client.id = id
+  let wh = window.location.hash
+  if len(wh) == 0:
+    client.master = true
+    p.on("connection") do (conn: DataConnection):
+      discard client.registerConnection(conn)
+  else:
+    client.master = false
+    let conn = p.connect(($wh)[1..^1])
+    await client.registerConnection(conn)
+
+### Various Utility procs
 proc dumpGameToClipboard(cl: MCClient) =
   cl.view.map do (v: MCGameView):
     let s = newStringStream()
@@ -59,7 +122,8 @@ proc getBoardContainerStyle(left: int, top: int): VStyle =
     (StyleAttr.left, cstring($left & "px")),
     (StyleAttr.top, cstring($top & "px")))
 
-const corsProxy = "https://cors-anywhere.herokuapp.com"
+### URL LOADING
+const corsProxy {.strdefine.} = "https://cors-anywhere.herokuapp.com"
 proc loadGameFromUrl(url: cstring): Future[MCGame] {.async.} =
   let res = await fetch(&(corsProxy & "/" & url))
   let gameText = await res.text()
@@ -72,23 +136,7 @@ proc showGameFromUrl(cl: MCClient, url: cstring) {.async.} =
   redraw()
   # TODO: send gameinit
 
-proc render(board: MCBoard): VNode =
-  result = buildHtml(tdiv):
-    tdiv(class="board"):
-      for r in countdown(board.numRanks-1, 0):
-        for f in countup(0, board.numFiles-1):
-          let blackSquareClass = if (f + r) mod 2 == 0:
-                                   kstring("square square-black")
-                                 else:
-                                   kstring("square square-white")
-
-          tdiv(class=blackSquareClass):
-            tdiv(class=getClassFor(board[f, r]))
-
-        br()
-
-proc renderBoardTest(): VNode =
-  return render(mcStartPos5x5)
+### Rendering
 
 # Can't get karax to properly render SVG so I have to do this for now,
 # don't worry about this code it's going to be replaced with much
@@ -119,7 +167,7 @@ proc drawGameView(state: MCGameView, canvas: Canvas) =
     let np = placement[node]
     let (x, y) = (float(np[0]), float(np[1]))
     return (x * w + dcx, y * h + dcy)
-    
+
   for node, np in placement:
     let (cx, cy) = center(node)
 
@@ -296,91 +344,15 @@ proc render(cl: MCClient): VNode =
       of stGame, stGameEnd:
         renderGame(cl)
 
-
-proc renderPieceTest(): VNode =
-  result = buildHtml(tdiv):
-    tdiv(class="piece piece-king-white")
-    tdiv(class="piece piece-king-black")
-    br()
-    tdiv(class="piece piece-queen-white")
-    tdiv(class="piece piece-queen-black")
-    br()
-    tdiv(class="piece piece-rook-white")
-    tdiv(class="piece piece-rook-black")
-    br()
-    tdiv(class="piece piece-bishop-white")
-    tdiv(class="piece piece-bishop-black")
-    br()
-    tdiv(class="piece piece-knight-white")
-    tdiv(class="piece piece-knight-black")
-    br()
-    tdiv(class="piece piece-pawn-white")
-    tdiv(class="piece piece-pawn-black")
-
-proc sendGameInit(client: MCClient): JsonNode {.async.} =
-  let gameInitMessage = GameInitMessage(
-    opponentId: $client.id,
-    board: client.view.get().game.rootNode.board,
-    color: oppositeColor(client.pcolor))
-
-  let resp = await client.rpc.client.call("gameinit", %* gameInitMessage)
-
-proc onConnectionOpen(client: MCClient, conn: DataConnection) {.async.} =
-  client.peerid = conn.peer
-  redraw()
-  if not client.master:
-    return
-  if not client.view.isSome():
-    return
-
-proc onConnectionClose(client: MCClient, conn: DataConnection) =
-  echo "connection closed with ", conn.peer
-
-proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
-  client.rpc = initSimpleRPCPeer(proc(data: cstring) = conn.send(data))
-  client.rpcInitialized = true
-  client.rpc.server.register("gameinit") do (arg: JsonNode) -> JsonNode:
-    let msg = to(arg, GameInitMessage)
-    let pcolor = msg.color
-    echo "GAMEINIT ", arg
-    client.status = stGame
-    client.view = some(newGameView(newGame(msg.board), color = some(pcolor)))
-    redraw()
-    %*"ok"
-
-  client.rpc.server.register("gamemove") do (arg: JsonNode) -> JsonNode:
-    echo "GAMEMOVE ", arg
-    let view = client.view.get()
-    let move = view.game.toMove(arg)
-    view.makeMove(move)
-    redraw()
-    %*"ok"
-                             
-  conn.on("data", proc(data: cstring) = recv(client.rpc, data))
-
-  conn.on("open") do (x: cstring):
-    discard client.onConnectionOpen(conn)
-    
-  conn.on("close") do (x: cstring):
-    client.onConnectionClose(conn)
-  conn.on("disconnected") do (x: cstring):
-    client.onConnectionClose(conn)
-                         
-
-proc initPeer(p: Peer, id: cstring, client: MCClient) {.async.} =
-  client.id = id
-  let wh = window.location.hash
-  if len(wh) == 0:
-    client.master = true
-    p.on("connection") do (conn: DataConnection):
-      discard client.registerConnection(conn)
-  else:
-    client.master = false
-    let conn = p.connect(($wh)[1..^1])
-    await client.registerConnection(conn)
 proc main() {.async.} =
+  # This will be used to connect to and communicate with another
+  # instance of this program.
   let p = newPeer()
+
   let client = newMCClient()
+
+  # Set up the board editor and its callback. In the callback, we set
+  # up the game and start it.
   client.boardEditor = newBoardEditor(mcStartPos5x5) do (b: MCBoard):
     # If we supply none as the player color, then the player will be
     # able to play for both colors. So, we check if a peer is
@@ -396,8 +368,9 @@ proc main() {.async.} =
     if client.rpcInitialized:
       discard client.sendGameInit()
 
+  # Register the most basic callbacks on the peer object
   p.on("open", proc(id: cstring) =
-                 discard initPeer(p, id, client)
+                 discard client.initPeer(p, id)
                  redraw())
 
   p.on("error", proc(err: PeerError) =
@@ -407,11 +380,14 @@ proc main() {.async.} =
                     raise newException(Exception, "peer error: {%err}"))
 
 
+  # Tell karax what to render
   proc renderClient(): VNode =
     render(client)
 
   setRenderer renderClient
 
+  # Track location hash changes and update them properly
+  # TODO: when hash goes from something -> empty, update accordingly.
   window.addEventListener("hashchange") do (ev: Event):
     if window.location.hash.startsWith("#/g/"):
       discard client.showGameFromUrl(($window.location.hash)[4..^1])
