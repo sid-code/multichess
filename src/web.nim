@@ -5,7 +5,7 @@ import dom, asyncjs
 import html5_canvas
 import peerjs
 include multichess
-import piececlasses, boardeditor, gameview, rpcs, clipboard
+import piececlasses, boardeditor, gameview, rpcs, clipboard, fetch
 
 # Constants
 
@@ -58,6 +58,19 @@ proc getBoardContainerStyle(left: int, top: int): VStyle =
     (StyleAttr.position, cstring"absolute"),
     (StyleAttr.left, cstring($left & "px")),
     (StyleAttr.top, cstring($top & "px")))
+
+const corsProxy = "https://cors-anywhere.herokuapp.com"
+proc loadGameFromUrl(url: cstring): Future[MCGame] {.async.} =
+  let res = await fetch(&(corsProxy & "/" & url))
+  let gameText = await res.text()
+  return newStringStream($gameText).readGame()
+
+proc showGameFromUrl(cl: MCClient, url: cstring) {.async.} =
+  let game = await loadGameFromUrl(url)
+  cl.status = stGame
+  cl.view = some(newGameView(game))
+  redraw()
+  # TODO: send gameinit
 
 proc render(board: MCBoard): VNode =
   result = buildHtml(tdiv):
@@ -253,6 +266,13 @@ proc render(cl: MCClient): VNode =
         br()
         text "multichess!"
         br()
+        text "load a game!  "
+        input(`type`="text", placeholder="RAW paste url"):
+          proc onkeydown(e: Event, n: VNode) =
+            if KeyboardEvent(e).key == "Enter":
+              window.location.hash = "#/g/" & e.target.value
+
+        br()
         text "start a game!"
         br()
         text "but first, a starting position"
@@ -343,7 +363,6 @@ proc initPeer(p: Peer, id: cstring, client: MCClient) {.async.} =
     client.master = false
     let conn = p.connect(($wh)[1..^1])
     await client.registerConnection(conn)
-
 proc main() {.async.} =
   let p = newPeer()
   let client = newMCClient()
@@ -377,6 +396,12 @@ proc main() {.async.} =
     render(client)
 
   setRenderer renderClient
+
+  window.addEventListener("hashchange") do (ev: Event):
+    if window.location.hash.startsWith("#/g/"):
+      discard client.showGameFromUrl(($window.location.hash)[4..^1])
+      redraw()
+  window.dispatchEvent(newEvent("hashchange"))
 
 when isMainModule:
   randomize()
