@@ -274,3 +274,19 @@ suite "misc":
 
     for np, node in l.placement:
       check(lc.placement[np].latticePos == node.latticePos)
+
+  test "checkmate rules":
+    const gameDump = staticRead("./game2")
+    let rg = newStringStream(gameDump).readGame()
+    # TODO: finish writing this test
+
+  test "simultaneity":
+    const gameDump = staticRead("./game2")
+    let rg = newStringStream(gameDump).readGame()
+    let moves = toSeq(rg.rootNode.getAllLegalMoves())
+    for m1 in moves:
+      check(not rg.rootNode.canMovesBeSimultaneous(m1, m1))
+
+    #TODO: add more to this test
+    #discard moves[0].makeMove()
+    #echo toSeq(rg.rootNode.getAllLegalMoves())
