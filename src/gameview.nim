@@ -1,5 +1,5 @@
-import games, moves, positions, layouts, moverules, playercolors
-import options, sets, tables, random
+import games, moves, positions, layouts, moverules, playercolors, latticenodes
+import options, sets, tables, random, strformat
 from sugar import `=>`
 
 type
@@ -16,6 +16,9 @@ type
 
     ## If existent, a move that would capture a king.
     checks*: seq[MCMove]
+
+    ## Tells the client what's going on, like "white is in checkmate"
+    statusText*: string
 
     highlightedPositions: HashSet[MCPosition]
     possibleMovePositions: HashSet[MCPosition]
@@ -72,12 +75,30 @@ proc calcLayout(cs: MCGameView) =
 proc findCheck(cs: MCGameView) =
   cs.checks = cs.game.rootNode.checksInPosition()
 
+proc updateStatusText(cs: MCGameView) =
+  if len(cs.currentLegalMoves) == 0:
+    var toPlay = mccWhite
+    for n in cs.game.rootNode.getNodesNeedingMove():
+      toPlay = n.board.toPlay
+      break
+
+    if len(cs.checks) == 0:
+      cs.statusText = fmt"{toPlay} is in stalemate."
+    else:
+      cs.statusText = fmt"{toPlay} is in checkmate."
+  else:
+    cs.statusText = ""
+
+proc getStatusText*(cs: MCGameView): cstring =
+  return cs.statusText
+
 proc calcMoves(cs: MCGameView) =
   cs.clearLegalMoves()
   for move in getAllLegalMoves(cs.game.rootNode):
     if cs.playerColor.isNone() or move.fromPos.getSquare().color == cs.playerColor.get():
       discard cs.currentLegalMoves.hasKeyOrPut(move.fromPos, @[])
       cs.currentLegalMoves[move.fromPos].add(move)
+  cs.updateStatusText()
 
 proc calcMovesAt(cs: MCGameView, p: MCPosition) =
   if p in cs.currentLegalMoves:
@@ -101,6 +122,8 @@ proc update*(cs: MCGameView, game: MCGame) =
   if not cs.config.lazyLoadMoves or len(cs.checks) > 0:
     cs.calcMoves()
   cs.clearSelection()
+  cs.statusText = ""
+  cs.updateStatusText()
 
 proc newGameView*(game: MCGame, config = initGameViewConfig(), color = none[MCPlayerColor]()): MCGameView =
   result = MCGameView(
