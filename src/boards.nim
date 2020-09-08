@@ -1,4 +1,4 @@
-import tables, strutils, json
+import tables, strutils, json, hashes
 import pieces, playercolors
 
 type
@@ -67,6 +67,8 @@ proc `%`*(b: MCSquare): owned JsonNode =
   result.fields["piece"] = %b.piece
   result.fields["color"] = %b.color
 
-  
-  
-  
+proc hash*(s: MCSquare): Hash =
+  var h: Hash = 0
+  h = h !& int(s.piece)
+  h = h !& int(s.color)
+  return !$h
