@@ -20,6 +20,8 @@ type
   MCAxisDirection* = enum
     mcdUp, mcdDown
 
+  MCPath* = seq[(MCAxis, MCAxisDirection)]
+
 const mcAxes* = [mcaRank, mcaFile, mcaTime, mcaSibling]
 const mcAxisDirections* = [mcdUp, mcdDown]
 
