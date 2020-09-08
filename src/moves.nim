@@ -143,7 +143,10 @@ const axisPairs = static:
   toSeq(combinations(mcAxes, 2))
 const axisCombos = static:
   assert(len(mcAxes) == 4)
-  toSeq(combinations(mcAxes))
+  var res = toSeq(combinations(mcAxes))
+  var empty: seq[MCAxis]
+  res.del(res.find(empty))
+  res
 
 iterator getPseudoLegalMoves*(p: MCPosition): MCMove =
   ## Iterate over "pseudo-legal" moves. These include moves that are
