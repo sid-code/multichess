@@ -5,7 +5,8 @@ import dom, asyncjs
 import html5_canvas
 import peerjs
 include multichess
-import piececlasses, boardeditor, gameview, rpcs, clipboard, fetch
+import rpcs, clipboard, fetch
+import piececlasses, boardeditor, gameview, movelog
 
 # Constants
 
@@ -263,6 +264,10 @@ proc renderGame(client: MCClient): VNode =
 
       if len(state.getStatusText()) > 0:
         text " status: " & state.getStatusText()
+    tdiv(class="client-movelog"):
+      renderMoveLog(state.game) do (i: MCMoveInfo):
+        echo i
+
     tdiv(class="client-container"):
       canvas(class="client-hints", id="backdrop")
       for np, node in state.layout.placement:

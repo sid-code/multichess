@@ -13,9 +13,20 @@ html, body {
     height: 100%;
 }
 
+.client-movelog {
+    position: fixed;
+    right: 0;
+    z-index: 20;
+    background-color: rgba(255,255,255,0.7);
+}
+.client-movelog:hover {
+    background-color: rgba(255,255,255,1);
+}
+
 .client-controls {
     position: fixed;
     z-index: 20;
+    background-color: rgba(255,255,255,0.7);
 }
 
 .client-container {
