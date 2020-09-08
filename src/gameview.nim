@@ -115,6 +115,9 @@ proc click*(cs: MCGameView, p: MCPosition) =
     cs.markPossibleMove(move.toPos)
 
 proc update*(cs: MCGameView, game: MCGame) =
+  # Note: status text is updated in calcMoves. This is because we only
+  # want to actually update the status text when we are sure all legal
+  # moves have been loaded.
   cs.game = game
   cs.clearLegalMoves()
   cs.calcLayout()
@@ -123,7 +126,6 @@ proc update*(cs: MCGameView, game: MCGame) =
     cs.calcMoves()
   cs.clearSelection()
   cs.statusText = ""
-  cs.updateStatusText()
 
 proc newGameView*(game: MCGame, config = initGameViewConfig(), color = none[MCPlayerColor]()): MCGameView =
   result = MCGameView(
