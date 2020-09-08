@@ -1,5 +1,5 @@
 import latticenodes, boards, moves, positions, playercolors, pieces
-import tables
+import tables, sequtils
 
 iterator getAllPossibleMoves(rootNode: MCLatticeNode[MCBoard]): MCMove =
   for node in rootNode.getNodesNeedingMove():
@@ -85,12 +85,15 @@ proc undoMove*(info: MCMoveInfo) =
     assert(not newFromNode.isNil)
     newFromNode.unlinkLeaf()
 
-proc checksInPosition*(rootNode: MCLatticeNode[MCBoard]): seq[MCMove] =
+iterator checksInPosition*(rootNode: MCLatticeNode[MCBoard]): MCMove =
   for move in rootNode.getAllPossibleMoves():
     let fromSquare = move.fromPos.getSquare()
     let toSquare = move.toPos.getSquare()
     if toSquare.piece == mcpKing and fromSquare.color == oppositeColor(toSquare.color):
-      result.add(move)
+      yield move
+
+proc getAllChecksInPosition*(rootNode: MCLatticeNode[MCBoard]): seq[MCMove] =
+  toSeq(rootNode.checksInPosition)
 
 proc isMoveLegal*(rootNode: MCLatticeNode[MCBoard], move: MCMove): bool =
   # Check for blatant illegal-ness
@@ -112,9 +115,8 @@ proc isMoveLegal*(rootNode: MCLatticeNode[MCBoard], move: MCMove): bool =
 
   result = true
 
-  let checks = rootNode.checksInPosition()
   let fromColor = move.fromPos.getSquare().color
-  for check in checks:
+  for check in rootNode.checksInPosition():
     if check.toPos.getSquare().color == fromColor:
       result = false
       break

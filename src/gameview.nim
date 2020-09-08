@@ -73,7 +73,7 @@ proc calcLayout(cs: MCGameView) =
   cs.layout.moveTopLeftTo((0, 0))
 
 proc findCheck(cs: MCGameView) =
-  cs.checks = cs.game.rootNode.checksInPosition()
+  cs.checks = cs.game.rootNode.getAllChecksInPosition()
 
 proc updateStatusText(cs: MCGameView) =
   if len(cs.currentLegalMoves) == 0:
