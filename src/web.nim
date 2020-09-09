@@ -355,17 +355,27 @@ proc renderMadeWith(): VNode =
       text "peerjs"
     text " to handle p2p connections."
 
+proc renderConnectInput(): VNode =
+  result = buildHtml(span):
+    input(`type`="text", placeholder="opponent peer ID"):
+      proc onkeydown(e: Event, n: VNode) =
+        if KeyboardEvent(e).key == "Enter":
+          window.location.hash = "#/c/" & e.target.value
+
 proc render(cl: MCClient): VNode =
   result = buildHtml(tdiv):
     case cl.status:
       of stConfig:
-        if not cl.id.isNil:
+        if cl.id.isNil:
+          text "waiting for peer id..."
+        else:
           text "peer id: "
           text cl.id
+        text " "
         if cl.peerid.isNil:
-          text " not connected."
+          renderConnectInput()
         else:
-          text " connected to "
+          text "connected to "
           text cl.peerid
 
         br()
@@ -383,6 +393,14 @@ proc render(cl: MCClient): VNode =
         text "but first, a starting position"
         br()
         render(cl.boardEditor)
+        if cl.view.isSome():
+          br()
+          text "ps: you have a game going currently!"
+          br()
+          button:
+            text "return to game"
+            proc onclick() =
+              cl.status = stGame
         hr()
         renderMadeWith()
       of stGame, stGameEnd:
