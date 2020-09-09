@@ -64,6 +64,10 @@ proc highlightCheckingPieces*(cs: MCGameView) =
 
 proc isSinglePlayer*(cs: MCGameView): bool =
   cs.playerColor.isNone()
+proc setSinglePlayer*(cs: MCGameView) =
+  cs.playerColor = none[MCPlayerColor]()
+proc setColor*(cs: MCGameView, color: MCPlayerColor) =
+  cs.playerColor = some(color)
 
 proc clearLegalMoves(cs: MCGameView) =
   cs.currentLegalMoves.clear()
