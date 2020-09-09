@@ -1,6 +1,6 @@
 include karax/prelude
 import karax/vstyles
-import options, tables, sets, json, random, streams
+import options, tables, sets, json, random, streams, strformat, sequtils
 import dom, asyncjs
 import html5_canvas
 import peerjs
