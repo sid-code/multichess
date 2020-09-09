@@ -148,12 +148,11 @@ proc undoLastMove*(cs: MCGameView) =
   cs.game.undoLastMove()
   cs.update(cs.game)
 
-proc makeRandomMove*(cs: MCGameView): MCMove =
+proc getRandomMove*(cs: MCGameView): MCMove =
   cs.calcMoves()
   var moves: seq[MCMove]
   for fp, ms in cs.currentLegalMoves:
     moves.add(ms)
   if len(moves) == 0:
-    raise newException(ValueError, "cannot play random move; no legal moves.")
+    raise newException(ValueError, "cannot get random move; no legal moves.")
   result = sample(moves)
-  cs.makeMove(result)

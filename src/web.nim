@@ -35,6 +35,9 @@ type
     board: MCBoard
     color: MCPlayerColor
 
+  # Thrown if the peer rejects our move
+  PeerRejectedMoveError = object of CatchableError
+
 ### Game client (including p2p stuff)
 proc newMCClient(): MCClient =
   new result
@@ -48,16 +51,60 @@ proc newMCClient(): MCClient =
   result.peerid = nil
   result.pcolor = rand(mccWhite..mccBlack)
 
-proc sendGameInit(client: MCClient): JsonNode {.async.} =
+proc initGame(client: MCClient, spectator = false): JsonNode {.async.} =
+  # Pass in spectator = true if we are letting a spectator watch.
+  if client.view.isNone():
+    raise newException(ValueError, "cannot send game init without a game started")
+  let view = client.view.get()
+  client.pcolor = rand(mccWhite..mccBlack)
+  view.setColor(client.pcolor)
+
   let gameInitMessage = GameInitMessage(
     opponentId: $client.id,
-    board: client.view.get().game.rootNode.board,
+    board: view.game.rootNode.board,
     color: oppositeColor(client.pcolor))
 
   let resp = await client.rpc.client.call("gameinit", %* gameInitMessage)
+  echo resp
+  for info in view.game.moveLog:
+    let resp = await client.rpc.client.call("gamemove", %* info.move)
+
+proc initClientRpc(client: MCClient, conn: DataConnection) =
+  if not client.rpcInitialized:
+    client.rpc = initSimpleRPCPeer(proc(data: cstring) = conn.send(data))
+    client.rpcInitialized = true
+    client.rpc.server.register("gameinit") do (arg: JsonNode) -> JsonNode:
+      if client.master:
+        %*"no"
+      else:
+        let msg = to(arg, GameInitMessage)
+        let pcolor = msg.color
+        echo "GAMEINIT ", arg
+        client.status = stGame
+        client.view = some(newGameView(newGame(msg.board), color = some(pcolor)))
+        redraw()
+        %*"ok"
+
+    client.rpc.server.register("gamemove") do (arg: JsonNode) -> JsonNode:
+      echo "GAMEMOVE ", arg
+      let view = client.view.get()
+      let move = view.game.toMove(arg)
+      view.makeMove(move)
+      redraw()
+      %*"ok"
+
+proc makeAndSendMove(client: MCClient, move: MCMove) {.async.} =
+  assert(client.view.isSome())
+  let view = client.view.get()
+  let resp = await client.rpc.client.call("gamemove", %* move)
+  if resp != %* "ok":
+    raise newException(PeerRejectedMoveError, fmt"peer rejected move: {move}")
+  view.makeMove(move)
+  redraw()
 
 proc onConnectionOpen(client: MCClient, conn: DataConnection) {.async.} =
   client.peerid = conn.peer
+  client.initClientRpc(conn)
   redraw()
   if not client.master:
     return
@@ -65,28 +112,11 @@ proc onConnectionOpen(client: MCClient, conn: DataConnection) {.async.} =
     return
 
 proc onConnectionClose(client: MCClient, conn: DataConnection) =
+  client.peerid = nil
+  client.rpcInitialized = false
   echo "connection closed with ", conn.peer
 
 proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
-  client.rpc = initSimpleRPCPeer(proc(data: cstring) = conn.send(data))
-  client.rpcInitialized = true
-  client.rpc.server.register("gameinit") do (arg: JsonNode) -> JsonNode:
-    let msg = to(arg, GameInitMessage)
-    let pcolor = msg.color
-    echo "GAMEINIT ", arg
-    client.status = stGame
-    client.view = some(newGameView(newGame(msg.board), color = some(pcolor)))
-    redraw()
-    %*"ok"
-
-  client.rpc.server.register("gamemove") do (arg: JsonNode) -> JsonNode:
-    echo "GAMEMOVE ", arg
-    let view = client.view.get()
-    let move = view.game.toMove(arg)
-    view.makeMove(move)
-    redraw()
-    %*"ok"
-
   conn.on("data", proc(data: cstring) = recv(client.rpc, data))
 
   conn.on("open") do (x: cstring):
@@ -97,18 +127,18 @@ proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
   conn.on("disconnected") do (x: cstring):
     client.onConnectionClose(conn)
 
-
 proc initPeer(client: MCClient, p: Peer, id: cstring) {.async.} =
+  echo "INITPEER"
   client.id = id
-  let wh = window.location.hash
-  if len(wh) == 0:
-    client.master = true
-    p.on("connection") do (conn: DataConnection):
+  client.master = true
+  p.on("connection") do (conn: DataConnection):
+    if client.peerid.isNil:
       discard client.registerConnection(conn)
-  else:
-    client.master = false
-    let conn = p.connect(($wh)[1..^1])
-    await client.registerConnection(conn)
+
+proc connectPeerTo(client: MCClient, p: Peer, id: cstring) {.async.} =
+  client.master = false
+  let conn = p.connect(id)
+  await client.registerConnection(conn)
 
 ### Various Utility procs
 proc dumpGameToClipboard(cl: MCClient) =
@@ -135,7 +165,8 @@ proc showGameFromUrl(cl: MCClient, url: cstring) {.async.} =
   cl.status = stGame
   cl.view = some(newGameView(game))
   redraw()
-  # TODO: send gameinit
+  if cl.rpcInitialized:
+    discard cl.initGame()
 
 ### Rendering
 
@@ -204,11 +235,9 @@ proc squareOnClick(cl: MCClient): proc(ev: Event, n: Vnode) =
              state.clearSelection()
            elif state.isPossibleMove(clickedPos):
              ## TODO: PROMOTION
-             state.selectedPosition.map(
-               proc(sp: MCPosition) =
-                 let move = mv(sp, clickedPos, mcpNone)
-                 state.makeMove(move)
-                 discard cl.rpc.client.call("gamemove", %* move))
+             state.selectedPosition.map do (sp: MCPosition):
+               let move = mv(sp, clickedPos, mcpNone)
+               discard cl.makeAndSendMove(move)
            else:
              if clickedPos.hasPiece():
                state.click(clickedPos)
@@ -234,8 +263,12 @@ proc renderGame(client: MCClient): VNode =
 
   result = buildHtml(tdiv):
     tdiv(class="client-controls"):
-      button(onclick=proc() = discard state.makeRandomMove()):
+      button():
         text "I'm feeling lucky"
+        proc onclick() =
+          let move = state.getRandomMove()
+          discard client.makeAndSendMove(move)
+
       if state.isSinglePlayer():
         button(onclick=proc() = state.undoLastMove()):
           text "oops"
@@ -359,19 +392,11 @@ proc main() {.async.} =
   # Set up the board editor and its callback. In the callback, we set
   # up the game and start it.
   client.boardEditor = newBoardEditor(mcStartPos5x5) do (b: MCBoard):
-    # If we supply none as the player color, then the player will be
-    # able to play for both colors. So, we check if a peer is
-    # connected and if so, we use our randomly generated
-    # client.pcolor.
-    var pcolor = none[MCPlayerColor]()
-    if not client.peerid.isNil:
-      pcolor = some(client.pcolor)
-
     client.status = stGame
-    client.view = some(newGameView(newGame(b), color = pcolor))
+    client.view = some(newGameView(newGame(b)))
 
     if client.rpcInitialized:
-      discard client.sendGameInit()
+      discard client.initGame()
 
   # Register the most basic callbacks on the peer object
   p.on("open", proc(id: cstring) =
@@ -394,9 +419,16 @@ proc main() {.async.} =
   # Track location hash changes and update them properly
   # TODO: when hash goes from something -> empty, update accordingly.
   window.addEventListener("hashchange") do (ev: Event):
-    if window.location.hash.startsWith("#/g/"):
+    if window.location.hash == "":
+      client.status = stConfig
+      redraw()
+    elif window.location.hash.startsWith("#/g/"):
       discard client.showGameFromUrl(($window.location.hash)[4..^1])
       redraw()
+    elif window.location.hash.startsWith("#/c/"):
+      discard client.connectPeerTo(p, ($window.location.hash)[4..^1])
+      window.location.hash = ""
+
   window.dispatchEvent(newEvent("hashchange"))
 
 when isMainModule:
