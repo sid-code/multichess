@@ -126,7 +126,7 @@ proc update*(cs: MCGameView, game: MCGame) =
   cs.clearLegalMoves()
   cs.calcLayout()
   cs.findCheck()
-  if not cs.config.lazyLoadMoves or len(cs.checks) > 0:
+  if not cs.config.lazyLoadMoves:
     cs.calcMoves()
   cs.clearSelection()
   cs.statusText = ""
