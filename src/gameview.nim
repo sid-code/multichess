@@ -74,6 +74,8 @@ proc clearLegalMoves(cs: MCGameView) =
 
 proc calcLayout(cs: MCGameView) =
   cs.layout = layout(cs.game.rootNode)
+  if cs.playerColor == some(mccBlack):
+    cs.layout.scale((1, -1))
   cs.layout.moveTopLeftTo((0, 0))
 
 proc findCheck(cs: MCGameView) =

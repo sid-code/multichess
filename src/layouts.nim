@@ -11,6 +11,7 @@ type
   LayoutOverlapError* = object of ValueError
 
 proc `+`*(p1, p2: MCLayoutPosition): MCLayoutPosition = (p1.x + p2.x, p1.y + p2.y)
+proc `*`*(p1, p2: MCLayoutPosition): MCLayoutPosition = (p1.x * p2.x, p1.y * p2.y)
 
 proc dims*(layout: MCLatticeLayout): tuple[width: int, height: int] =
   (layout.bottomRight.x - layout.topLeft.x + 1,
@@ -26,6 +27,25 @@ proc transpose*(layout: var MCLatticeLayout, dp: MCLayoutPosition) =
     newPlacement[pos + dp] = node
   layout.placement = newPlacement
 
+proc scale*(layout: var MCLatticeLayout, scale: MCLayoutPosition) =
+  ## Scales the layout by the scaling factor provided. Basically just
+  ## same as transpose but with multiplication instead of
+  ## addition. Mainly used for flipping the layout if the player is
+  ## black. (scale = (1, -1))
+  var newTopLeft = layout.topLeft * scale
+  var newBottomRight = layout.bottomRight * scale
+  layout.rootNode = layout.rootNode * scale
+  var newPlacement = initTable[MCLayoutPosition, MCLatticeNode[MCBoard]]()
+  for pos, node in layout.placement:
+    let newPos = pos * scale
+    newPlacement[pos * scale] = node
+    if newPos.x <= newTopLeft.x and newPos.y <= newTopLeft.y:
+      newTopLeft = newPos
+    if newPos.x >= newBottomRight.x and newPos.y >= newBottomRight.y:
+      newBottomRight = newPos
+  layout.placement = newPlacement
+  layout.topLeft = newTopLeft
+  layout.bottomRight = newBottomRight
 
 proc moveTopLeftTo*(layout: var MCLatticeLayout, newTopLeft: MCLayoutPosition) =
   layout.transpose( (newTopLeft.x - layout.topLeft.x,
