@@ -1,5 +1,5 @@
 import unittest
-import latticenodes, boards, games, pieces, positions, playercolors, moves, moverules, startpos, layouts
+import latticenodes, boards, games, pieces, positions, playercolors, moves, moverules, startpos, layouts, serialization
 import sequtils, tables, streams
 from sugar import `=>`
 
@@ -130,7 +130,7 @@ suite "timelines":
     let r = 5
     let squares = newSeq[MCSquare](f * r)
     let sp = MCBoard(numFiles: 5, numRanks: 5, squares: squares)
-    let root = newLatticeNode[MCBoard](sp)
+    let root = newLatticeNode(sp)
 
   test "branched nodes have the correct siblings":
     let b2 = sp
@@ -183,7 +183,7 @@ suite "game logic":
     let r = 5
     let squares = newSeq[MCSquare](f * r)
     let sp = MCBoard(numFiles: 5, numRanks: 5, squares: squares)
-    let root = newLatticeNode[MCBoard](sp)
+    let root = newLatticeNode(sp)
 
   test "TODO: knight moves on clear board":
     var osp = sp
@@ -231,6 +231,24 @@ suite "layout":
     #let l = layout(game.rootNode)
     # TODO: test something here
 
+suite "serialization":
+  setup:
+    discard
+  test "reading uint8s works":
+    var s = newStringStream()
+    serialization.write(s, uint32(0xFFAAFFAA))
+    s.setPosition(0)
+    check(uint32(serialization.readUint8(s)) == 0xFF)
+    check(uint32(serialization.readUint8(s)) == 0xAA)
+    check(uint32(serialization.readUint8(s)) == 0xFF)
+    check(uint32(serialization.readUint8(s)) == 0xAA)
+
+  test "write and reading uint32s works":
+    var s = newStringStream()
+    serialization.write(s, uint32(0xFFAAFFAA))
+    s.setPosition(0)
+    check(uint32(serialization.readUint32(s)) == uint32(0xFFAAFFAA))
+  
 suite "game dumps":
   setup:
     var game = newGame(mcKQOnly5x5)
@@ -268,7 +286,7 @@ suite "misc":
 
     let l = layout(game.rootNode)
 
-    var nodeCopies = initTable[seq[int], MCLatticeNode[MCBoard]]()
+    var nodeCopies = initTable[MCLatticePos, MCLatticeNode[MCBoard]]()
     let rootNodeCopy = deepCopyTree(game.rootNode, nodeCopies)
     let lc = layout(rootNodeCopy)
 
