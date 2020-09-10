@@ -6,7 +6,7 @@ type
     numBoardFiles: int
     numBoardRanks: int
     startPosition: MCBoard
-    nodeLookup: Table[seq[int], MCLatticeNode[MCBoard]]
+    nodeLookup: Table[MCLatticePos, MCLatticeNode[MCBoard]]
     rootNode*: MCLatticeNode[MCBoard]
     moveLog*: seq[MCMoveInfo]
 
@@ -16,14 +16,9 @@ proc newGame*(startPos: MCBoard): MCGame =
   result.numBoardRanks = startPos.numRanks
   result.numBoardFiles = startPos.numFiles
   result.moveLog = @[]
-  result.nodeLookup = initTable[seq[int], MCLatticeNode[MCBoard]]()
+  result.nodeLookup = initTable[MCLatticePos, MCLatticeNode[MCBoard]]()
 
-  result.rootNode = MCLatticeNode[MCBoard](
-    board: startPos,
-    latticePos: @[],
-    nextSibling: nil, prevSibling: nil,
-    past: nil,
-    future: @[])
+  result.rootNode = MCLatticeNode[MCBoard](board: startPos)
 
   result.nodeLookup[result.rootNode.latticePos] = result.rootNode
 
@@ -47,5 +42,5 @@ proc undoLastMove*(g: MCGame) =
   let lastMoveInfo = g.moveLog.pop()
   lastMoveInfo.undoMove()
 
-proc getByLatticePos*(g: MCGame, pos: seq[int]): MCLatticeNode[MCBoard] =
+proc getByLatticePos*(g: MCGame, pos: MCLatticePos): MCLatticeNode[MCBoard] =
   g.nodeLookup.getOrDefault(pos, nil)

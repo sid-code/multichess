@@ -1,29 +1,37 @@
-import tables, hashes, strutils, strformat, json
+import tables, hashes, strutils, strformat
 
 # gotta use a generic because of the circular dependency :/
 type
+  MCLatticePos* = distinct seq[int]
   MCLatticeNode*[T] = ref object
     board*: T
-    latticePos*: seq[int]
+    latticePos*: MCLatticePos
     nextSibling*, prevSibling*: MCLatticeNode[T]
     past*: MCLatticeNode[T]
     future*: seq[MCLatticeNode[T]]
 
+
   MCLSiblingDirection* = enum
     mclsNext, mclsPrev
+const
+  mcRootNodePos* = MCLatticePos(@[])
+
+proc `hash`*(p: MCLatticePos): Hash {.borrow.}
+proc `$`*(p: MCLatticePos): string {.borrow.}
+proc `==`*(p, q: MCLatticePos): bool {.borrow.}
+proc `len`(p: MCLatticePos): Hash {.borrow.}
+proc `&`(p, q: MCLatticePos): MCLatticePos {.borrow.}
+proc `&`(p: MCLatticePos, q: int): MCLatticePos {.borrow.}
 
 proc `$`*[T](n: MCLatticeNode[T]): string =
   if n.isNil: return "[NULL NODE]"
 
   let idstr = if n.latticePos.len > 0:
-                n.latticePos.join("")
+                $n.latticePos
               else:
                 "root"
 
   return fmt"[Node {idstr}]"
-
-proc `%`*[T](n: MCLatticeNode[T]): JsonNode =
-  %n.latticePos
 
 proc needsMove*[T](node: MCLatticeNode[T]): bool =
   len(node.future) == 0
@@ -35,19 +43,18 @@ iterator allNodes*[T](root: MCLatticeNode[T]): MCLatticeNode[T] =
     yield node
     frontier.add(node.future)
 
-proc newLatticeNode*[T](board: T, latticePos: seq[int] = @[],
-                        nextSibling, prevSibling: MCLatticeNode[T] = nil,
+proc newLatticeNode*[T](board: T, nextSibling, prevSibling: MCLatticeNode[T] = nil,
                         past: MCLatticeNode[T] = nil): MCLatticeNode[T] =
   new result
   result.board = board
-  result.latticePos = latticePos
+  result.latticePos = mcRootNodePos
   result.nextSibling = nextSibling
   result.prevSibling = prevSibling
   result.past = past
   result.future = @[]
 
 proc deepCopyTree*[T](node: MCLatticeNode[T],
-                   memo: var Table[seq[int], MCLatticeNode[T]]):
+                   memo: var Table[MCLatticePos, MCLatticeNode[T]]):
                      MCLatticeNode[T] =
   if node.latticePos in memo:
     return memo[node.latticePos]
@@ -136,7 +143,9 @@ proc branch*[T](node: MCLatticeNode[T], board: T,
   let nextSibling = node.nextSibling
   let prevSibling = node.prevSibling
 
-  result = newLatticeNode(board, node.latticePos & len(node.future), nil, nil, node)
+  result = newLatticeNode(board)
+  result.latticePos = node.latticePos & len(node.future)
+  result.past = node
 
   if len(node.future) > 0:
     let future = node.future[0]

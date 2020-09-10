@@ -128,7 +128,7 @@ proc canMovesBeSimultaneous*(rootNode: MCLatticeNode[MCBoard], m1, m2: MCMove): 
   ## roughly by playing the moves in both orders and seeing if both
   ## are valid situations. Even if the resulting positions are
   ## different, it _should_ be fine to arbitrarily choose an order.
-  var nodeCopies: Table[seq[int], MCLatticeNode[MCBoard]]
+  var nodeCopies: Table[MCLatticePos, MCLatticeNode[MCBoard]]
   let c1 = rootNode.deepCopyTree(nodeCopies)
   let fpn1 = nodeCopies[m1.fromPos.node.latticePos]
   let tpn1 = nodeCopies[m1.toPos.node.latticePos]
