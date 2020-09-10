@@ -282,24 +282,68 @@ proc squareOnClick(cl: MCClient): proc(ev: Event, n: Vnode) =
                state.click(clickedPos)
                state.selectPosition(clickedPos)
 
-proc renderGame(client: MCClient): VNode =
+proc renderMadeWith(): VNode =
+  result = buildHtml(tdiv):
+    text "made with "
+    a(href="https://nim-lang.org"):
+      text "nim"
+    text " using "
+    a(href="https://peerjs.com/"):
+      text "peerjs"
+    text " to handle p2p connections."
+
+proc renderConnectInput(): VNode =
+  result = buildHtml(span):
+    input(`type`="text", placeholder="opponent peer ID"):
+      proc onkeydown(e: Event, n: VNode) =
+        if KeyboardEvent(e).key == "Enter":
+          window.location.hash = "#/c/" & e.target.value
+
+proc renderConfigPanel(cl: MCClient): VNode =
+  result = buildHtml(tdiv):
+    if cl.id.isNil:
+      text "waiting for peer id..."
+    else:
+      text "peer id: "
+      text cl.id
+    text " "
+    if cl.peerid.isNil:
+      renderConnectInput()
+    else:
+      text "connected to "
+      text cl.peerid
+
+    br()
+    text "multichess!"
+    br()
+    text "load a game!  "
+    input(`type`="text", placeholder="RAW paste url"):
+      proc onkeydown(e: Event, n: VNode) =
+        let val = $e.target.value
+        if KeyboardEvent(e).key == "Enter":
+          if val.startsWith("http"):
+            window.location.hash = "#/g/" & e.target.value
+          else:
+            window.location.hash = "#/r/" & e.target.value
+    br()
+    text "start a game!"
+    br()
+    text "but first, a starting position"
+    br()
+    render(cl.boardEditor)
+    if cl.view.isSome():
+      br()
+      text "ps: you have a game going currently!"
+      br()
+      button:
+        text "return to game"
+        proc onclick() =
+          cl.status = stGame
+    hr()
+    renderMadeWith()
+
+proc renderControls(client: MCClient): VNode =
   let state = client.view.get()
-  var game = state.game
-
-  # See comment on drawGameView... bleh. It even makes me have to do
-  # this. Pray that your DOM renders in 10ms (or whatever's after the
-  # proc argument)
-  discard window.setTimeout(
-    proc() =
-      let cnv = document.getElementById("backdrop")
-      if not cnv.isNil: state.drawGameView(cast[Canvas](cnv)),
-    10)
-
-  var actionableBoards: HashSet[MCLatticeNode[MCBoard]]
-  for mpos, moves in state.currentLegalMoves:
-    if len(moves) > 0:
-      actionableBoards.incl(mpos.node)
-
   result = buildHtml(tdiv):
     tdiv(class="client-controls"):
       button():
@@ -336,9 +380,30 @@ proc renderGame(client: MCClient): VNode =
 
       if len(state.getStatusText()) > 0:
         text " status: " & state.getStatusText()
-    tdiv(class="client-movelog"):
-      renderMoveLog(state.game) do (i: MCMoveInfo):
-        echo i
+    #tdiv(class="client-movelog"):
+    #  renderMoveLog(state.game) do (i: MCMoveInfo):
+    #    echo i
+
+proc renderGame(client: MCClient): VNode =
+  let state = client.view.get()
+  var game = state.game
+
+  # See comment on drawGameView... bleh. It even makes me have to do
+  # this. Pray that your DOM renders in 10ms (or whatever's after the
+  # proc argument)
+  discard window.setTimeout(
+    proc() =
+      let cnv = document.getElementById("backdrop")
+      if not cnv.isNil: state.drawGameView(cast[Canvas](cnv)),
+    10)
+
+  var actionableBoards: HashSet[MCLatticeNode[MCBoard]]
+  for mpos, moves in state.currentLegalMoves:
+    if len(moves) > 0:
+      actionableBoards.incl(mpos.node)
+
+  result = buildHtml(tdiv):
+    renderControls(client)
 
     tdiv(class="client-container"):
       canvas(class="client-hints", id="backdrop")
@@ -384,73 +449,33 @@ proc renderGame(client: MCClient): VNode =
 
               br()
 
-proc renderMadeWith(): VNode =
-  result = buildHtml(tdiv):
-    text "made with "
-    a(href="https://nim-lang.org"):
-      text "nim"
-    text " using "
-    a(href="https://peerjs.com/"):
-      text "peerjs"
-    text " to handle p2p connections."
-
-proc renderConnectInput(): VNode =
-  result = buildHtml(span):
-    input(`type`="text", placeholder="opponent peer ID"):
-      proc onkeydown(e: Event, n: VNode) =
-        if KeyboardEvent(e).key == "Enter":
-          window.location.hash = "#/c/" & e.target.value
-
 proc render(cl: MCClient): VNode =
   result = buildHtml(tdiv):
     case cl.status:
       of stConfig:
-        if cl.id.isNil:
-          text "waiting for peer id..."
-        else:
-          text "peer id: "
-          text cl.id
-        text " "
-        if cl.peerid.isNil:
-          renderConnectInput()
-        else:
-          text "connected to "
-          text cl.peerid
-
-        br()
-        text "multichess!"
-        br()
-        text "load a game!  "
-        input(`type`="text", placeholder="RAW paste url"):
-          proc onkeydown(e: Event, n: VNode) =
-            if KeyboardEvent(e).key == "Enter":
-              window.location.hash = "#/g/" & e.target.value
-
-        br()
-        text "start a game!"
-        br()
-        text "but first, a starting position"
-        br()
-        render(cl.boardEditor)
-        if cl.view.isSome():
-          br()
-          text "ps: you have a game going currently!"
-          br()
-          button:
-            text "return to game"
-            proc onclick() =
-              cl.status = stGame
-        hr()
-        renderMadeWith()
+        renderConfigPanel(cl)
       of stGame, stGameEnd:
         renderGame(cl)
+
+proc randomString(length: int): string =
+  for _ in 0 ..< length:
+    result.add(char(rand(int('a') .. int('z'))))
 
 proc main() {.async.} =
   # This will be used to connect to and communicate with another
   # instance of this program.
-  let p = newPeer()
+  let p = newPeer(
+    id = randomString(12),
+    host = cstring"doa.skulk.org",
+    path = cstring"/myapp",
+    port = 2301,
+    secure = false,
+  )
 
   let client = newMCClient()
+
+  proc gotPeerId(id: cstring) =
+    discard client.initPeer(p, id)
 
   # Set up the board editor and its callback. In the callback, we set
   # up the game and start it.
@@ -462,15 +487,12 @@ proc main() {.async.} =
       discard client.initGame()
 
   # Register the most basic callbacks on the peer object
-  p.on("open", proc(id: cstring) =
-                 discard client.initPeer(p, id)
-                 redraw())
-
-  p.on("error", proc(err: PeerError) =
-                  if err.`type` == "peer-unavailable":
-                    discard #TODO
-                  else:
-                    raise newException(Exception, "peer error: {%err}"))
+  p.on("open", gotPeerId)
+  p.on("error") do (err: PeerError):
+    if err.`type` == "peer-unavailable":
+      discard #TODO
+    else:
+      raise newException(Exception, fmt"peer error: {err}")
 
 
   # Tell karax what to render
@@ -487,6 +509,9 @@ proc main() {.async.} =
       redraw()
     elif window.location.hash.startsWith("#/g/"):
       discard client.showGameFromUrl(($window.location.hash)[4..^1])
+      redraw()
+    elif window.location.hash.startsWith("#/r/"):
+      discard client.showGameFromText(($window.location.hash)[4..^1])
       redraw()
     elif window.location.hash.startsWith("#/c/"):
       discard client.connectPeerTo(p, ($window.location.hash)[4..^1])
