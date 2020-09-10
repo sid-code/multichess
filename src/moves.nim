@@ -1,6 +1,6 @@
 import positions, pieces, latticenodes, boards, playercolors
 import combinations
-import tables, sequtils, hashes, json, strformat, math
+import tables, sequtils, hashes, strformat, math
 
 type
   MCMove* = ref MCMoveObj
@@ -273,9 +273,3 @@ defMovement mcpPawn:
           let candidateMove = moveTo(cpos)
           if candidateMove.isCapture:
             result.add(candidateMove)
-
-proc `%`*(move: MCMove): JsonNode =
-  result = newJObject()
-  result.fields["fromPos"] = %move.fromPos
-  result.fields["toPos"] = %move.toPos
-  result.fields["promotion"] = %move.promotion

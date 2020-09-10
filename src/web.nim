@@ -1,17 +1,18 @@
 include karax/prelude
 import karax/vstyles
-import options, tables, sets, json, random, streams, strformat, sequtils
+import options, tables, sets, random, streams, strformat, sequtils, base64
 import dom, asyncjs
 import html5_canvas
 import peerjs
 include multichess
 import rpcs, clipboard, fetch
-import piececlasses, boardeditor, gameview, movelog
+import piececlasses, boardeditor, gameview, movelog, serialization
 
 # Constants
 
 ## Don't forget to change this if the css changes!
 const squareSizePixels = 40
+
 
 type
   LogEntry = tuple
@@ -32,11 +33,23 @@ type
 
   GameInitMessage = object
     opponentId: string
+    spectator: bool
     board: MCBoard
     color: MCPlayerColor
 
   # Thrown if the peer rejects our move
   PeerRejectedMoveError = object of CatchableError
+
+proc write*(s: Stream, im: GameInitMessage) =
+  s.writeStrAndLen(im.opponentId)
+  s.write(uint8(im.spectator))
+  s.write(im.board)
+  s.write(uint8(im.color))
+proc read*(s: Stream, im: var GameInitMessage) =
+  im.opponentId = s.readStrAndLen()
+  im.spectator = bool(serialization.readUint8(s))
+  s.read(im.board)
+  im.color = MCPlayerColor(serialization.readUint8(s))
 
 ### Game client (including p2p stuff)
 proc newMCClient(): MCClient =
@@ -45,13 +58,13 @@ proc newMCClient(): MCClient =
   result.status = stConfig
   result.master = false
   # dummy value, will be overwritten later
-  result.rpc = initSimpleRPCPeer(proc(data: cstring) = discard)
+  result.rpc = initSimpleRPCPeer(proc(data: string) = discard)
   result.rpcInitialized = false
   result.id = nil
   result.peerid = nil
   result.pcolor = rand(mccWhite..mccBlack)
 
-proc initGame(client: MCClient, spectator = false): JsonNode {.async.} =
+proc initGame(client: MCClient, spectator = false) {.async.} =
   # Pass in spectator = true if we are letting a spectator watch.
   if client.view.isNone():
     raise newException(ValueError, "cannot send game init without a game started")
@@ -59,47 +72,66 @@ proc initGame(client: MCClient, spectator = false): JsonNode {.async.} =
   client.pcolor = rand(mccWhite..mccBlack)
   view.setColor(client.pcolor)
 
-  let gameInitMessage = GameInitMessage(
+  let initmsg = GameInitMessage(
     opponentId: $client.id,
+    spectator: spectator,
     board: view.game.rootNode.board,
     color: oppositeColor(client.pcolor))
 
-  let resp = await client.rpc.client.call("gameinit", %* gameInitMessage)
+  let ss = newStringStream()
+  ss.write(initmsg)
+  let resp = await client.rpc.client.call("gameinit", ss.data)
   echo resp
   for info in view.game.moveLog:
-    let resp = await client.rpc.client.call("gamemove", %* info.move)
+    let ss = newStringStream()
+    ss.write(info.move)
+    let resp = await client.rpc.client.call("gamemove", ss.data)
 
 proc initClientRpc(client: MCClient, conn: DataConnection) =
   if not client.rpcInitialized:
-    client.rpc = initSimpleRPCPeer(proc(data: cstring) = conn.send(data))
+    client.rpc = initSimpleRPCPeer do (data: string):
+      conn.send(cstring(base64.encode(data)))
     client.rpcInitialized = true
-    client.rpc.server.register("gameinit") do (arg: JsonNode) -> JsonNode:
+
+    conn.on("data") do (data: cstring):
+      recv(client.rpc, base64.decode($data))
+
+    client.rpc.server.register("gameinit") do (arg: string) -> string:
       if client.master:
-        %*"no"
+        "no"
       else:
-        let msg = to(arg, GameInitMessage)
+        var msg: GameInitMessage
+        newStringStream(arg).read(msg)
         let pcolor = msg.color
         echo "GAMEINIT ", arg
         client.status = stGame
         client.view = some(newGameView(newGame(msg.board), color = some(pcolor)))
         redraw()
-        %*"ok"
+        "ok"
 
-    client.rpc.server.register("gamemove") do (arg: JsonNode) -> JsonNode:
+    client.rpc.server.register("gamemove") do (arg: string) -> string:
       echo "GAMEMOVE ", arg
       let view = client.view.get()
-      let move = view.game.toMove(arg)
+
+      var move: MCMove
+      newStringStream(arg).read(view.game, move)
       view.makeMove(move)
       redraw()
-      %*"ok"
+      "ok"
 
 proc makeAndSendMove(client: MCClient, move: MCMove) {.async.} =
   assert(client.view.isSome())
   let view = client.view.get()
-  let resp = await client.rpc.client.call("gamemove", %* move)
-  if resp != %* "ok":
-    raise newException(PeerRejectedMoveError, fmt"peer rejected move: {move}")
-  view.makeMove(move)
+  if client.peerid.isNil:
+    view.makeMove(move)
+  else:
+    let ss = newStringStream()
+    ss.write(move)
+    let resp = await client.rpc.client.call("gamemove", ss.data)
+    if resp == "ok":
+      view.makeMove(move)
+    else:
+      raise newException(PeerRejectedMoveError, fmt"peer rejected move: {move}")
   redraw()
 
 proc onConnectionOpen(client: MCClient, conn: DataConnection) {.async.} =
@@ -117,7 +149,7 @@ proc onConnectionClose(client: MCClient, conn: DataConnection) =
   echo "connection closed with ", conn.peer
 
 proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
-  conn.on("data", proc(data: cstring) = recv(client.rpc, data))
+  echo "REGCON"
 
   conn.on("open") do (x: cstring):
     discard client.onConnectionOpen(conn)
@@ -131,6 +163,7 @@ proc initPeer(client: MCClient, p: Peer, id: cstring) {.async.} =
   echo "INITPEER"
   client.id = id
   client.master = true
+  redraw()
   p.on("connection") do (conn: DataConnection):
     if client.peerid.isNil:
       discard client.registerConnection(conn)
@@ -145,7 +178,7 @@ proc dumpGameToClipboard(cl: MCClient) =
   cl.view.map do (v: MCGameView):
     let s = newStringStream()
     s.write(v.game)
-    copyToClipboard(s.data)
+    copyToClipboard(base64.encode(s.data))
 
 proc getBoardContainerStyle(left: int, top: int): VStyle =
   style(
@@ -155,18 +188,24 @@ proc getBoardContainerStyle(left: int, top: int): VStyle =
 
 ### URL LOADING
 const corsProxy {.strdefine.} = "https://cors-anywhere.herokuapp.com"
-proc loadGameFromUrl(url: cstring): Future[MCGame] {.async.} =
-  let res = await fetch(&(corsProxy & "/" & url))
-  let gameText = await res.text()
-  return newStringStream($gameText).readGame()
+proc getTextFromUrl(url: cstring): Future[string] {.async.} =
+  let resp = await fetch(&(corsProxy & "/" & url))
+  let txt = $await resp.text()
+  return txt
 
-proc showGameFromUrl(cl: MCClient, url: cstring) {.async.} =
-  let game = await loadGameFromUrl(url)
+
+proc showGameFromText(cl: MCClient, gt: string) {.async.} =
+  let gameData = base64.decode(gt)
+  let game = newStringStream($gameData).readGame()
   cl.status = stGame
   cl.view = some(newGameView(game))
   redraw()
   if cl.rpcInitialized:
     discard cl.initGame()
+
+proc showGameFromUrl(cl: MCClient, url: cstring) {.async.} =
+  let gameText = await getTextFromUrl(url)
+  await cl.showGameFromText(gameText)
 
 ### Rendering
 
