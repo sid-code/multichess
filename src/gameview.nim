@@ -14,6 +14,8 @@ type
     currentLegalMoves*: Table[MCPosition, seq[MCMove]]
     selectedPosition*: Option[MCPosition]
 
+    preMoves: Table[MCLatticePos, MCMove]
+
     ## If existent, a move that would capture a king.
     checks*: seq[MCMove]
 
