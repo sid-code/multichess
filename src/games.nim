@@ -5,7 +5,7 @@ type
   MCGame* = ref object
     numBoardFiles: int
     numBoardRanks: int
-    startPosition: MCBoard
+    startPosition*: MCBoard
     nodeLookup: Table[MCLatticePos, MCLatticeNode[MCBoard]]
     rootNode*: MCLatticeNode[MCBoard]
     moveLog*: seq[MCMoveInfo]
