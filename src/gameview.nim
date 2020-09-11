@@ -1,4 +1,4 @@
-import games, moves, positions, layouts, moverules, playercolors, latticenodes
+import games, boards, moves, positions, layouts, moverules, playercolors, latticenodes
 import options, sets, tables, random, strformat
 from sugar import `=>`
 
@@ -6,6 +6,9 @@ type
   MCGameViewConfig = object
     lazyLoadMoves*: bool
 
+  MCPremove = tuple
+    node: MCLatticeNode[MCBoard]
+    move: MCMove
   MCGameView* = ref object
     config*: MCGameViewConfig
     game*: MCGame
@@ -14,7 +17,7 @@ type
     currentLegalMoves*: Table[MCPosition, seq[MCMove]]
     selectedPosition*: Option[MCPosition]
 
-    preMoves: Table[MCLatticePos, MCMove]
+    premoves: seq[MCPremove]
 
     ## If existent, a move that would capture a king.
     checks*: seq[MCMove]
@@ -121,6 +124,14 @@ proc click*(cs: MCGameView, p: MCPosition) =
   cs.clearSelection()
   for move in cs.currentLegalMoves[p]:
     cs.markPossibleMove(move.toPos)
+
+proc processPremoves(cs: MCGameView, game: MCGame) =
+  for (node, move) in cs.premoves:
+    # If the node still needs a move then the premove isn't relevant
+    # yet.
+    if node.needsMove():
+      continue
+    #TODO
 
 proc update*(cs: MCGameView, game: MCGame) =
   # Note: status text is updated in calcMoves. This is because we only
