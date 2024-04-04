@@ -177,6 +177,13 @@ proc unlinkLeaf*[T](leafNode: MCLatticeNode[T]) =
   leafNode.nextSibling = nil
   leafNode.prevSibling = nil
 
+proc withTempBranch*[T](n: MCLatticeNode[T], board: T,
+                        preferredSiblingDirection: MCLSiblingDirection,
+                        cb: proc(temp: MCLatticeNode[T])) =
+  let temp = n.branch(board, preferredSiblingDirection)
+  cb(temp)
+  temp.unlinkLeaf()
+
 when isMainModule:
   import boards
   let f = 5

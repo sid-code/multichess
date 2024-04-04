@@ -27,7 +27,6 @@ type
     boardEditor: MCBoardEditor
     master: bool
     id, peerid: PeerID
-    pcolor: MCPlayerColor
     rpc: SimpleRPCPeer
     rpcInitialized: bool
 
@@ -51,6 +50,9 @@ proc read*(s: Stream, im: var GameInitMessage) =
   s.read(im.board)
   im.color = MCPlayerColor(serialization.readUint8(s))
 
+### Utility
+proc randColor(): MCPlayerColor = rand(mccWhite..mccBlack)
+
 ### Game client (including p2p stuff)
 proc newMCClient(): MCClient =
   new result
@@ -62,30 +64,77 @@ proc newMCClient(): MCClient =
   result.rpcInitialized = false
   result.id = nil
   result.peerid = nil
-  result.pcolor = rand(mccWhite..mccBlack)
 
-proc initGame(client: MCClient, spectator = false) {.async.} =
-  # Pass in spectator = true if we are letting a spectator watch.
+proc makeMove(client: MCClient, move: MCMove, noCallback = false) =
   if client.view.isNone():
-    raise newException(ValueError, "cannot send game init without a game started")
+    raise newException(ValueError, "no game has been started")
   let view = client.view.get()
-  client.pcolor = rand(mccWhite..mccBlack)
-  view.setColor(client.pcolor)
+  view.makeMove(move, noCallback)
 
-  let initmsg = GameInitMessage(
-    opponentId: $client.id,
-    spectator: spectator,
-    board: view.game.rootNode.board,
-    color: oppositeColor(client.pcolor))
+proc removePremove(client: MCClient, pos: MCPosition) =
+  if client.view.isNone():
+    raise newException(ValueError, "no game has been started")
+  let view = client.view.get()
+  view.removePremove(pos)
 
-  let ss = newStringStream()
-  ss.write(initmsg)
-  let resp = await client.rpc.client.call("gameinit", ss.data)
-  echo resp
-  for info in view.game.moveLog:
+proc togglePremove(client: MCClient, premove: MCMove) =
+  if client.view.isNone():
+    raise newException(ValueError, "no game has been started")
+  let view = client.view.get()
+  let existingPremove = view.getPremoves.getOrDefault(premove.fromPos, nil)
+  if not existingPremove.isNil and existingPremove == premove:
+    view.removePremove(premove)
+  else:
+    view.makePremove(premove)
+
+proc clearPremoves(client: MCClient) =
+  if client.view.isNone():
+    raise newException(ValueError, "no game has been started")
+  let view = client.view.get()
+  view.clearPremoves()
+
+proc addCallback[T](f: Future[T], cb: proc(v: T)) {.importcpp: "#.then(#)".}
+
+proc initGame(client: MCClient, g: MCGame,
+              color = none[MCPlayerColor](),
+              moveCallback: MCMoveCallback = nil) {.async.} =
+
+  proc realMoveCallback(m: MCMove) =
+    if not isNil(moveCallback):
+      moveCallback(m)
+
+    if not client.peerid.isNil and client.rpcInitialized:
+      let ss = newStringStream()
+      ss.write(m)
+      let respFuture = client.rpc.client.call("gamemove", ss.data)
+      respFuture.addCallback do (resp: string):
+        if resp != "ok":
+          raise newException(PeerRejectedMoveError, fmt"peer rejected move: {m}")
+
+
+  client.view = some(newGameView(
+    g,
+    color = color,
+    config = initGameViewConfig(moveCallback = realMoveCallback)))
+  client.status = stGame
+
+  if client.rpcInitialized and client.master:
+    let view = client.view.get()
+    assert color.isSome(), "multiplayer game cannot be initialized with no player color" 
+
+    let initmsg = GameInitMessage(
+      opponentId: $client.id,
+      spectator: false,
+      board: view.game.rootNode.board,
+      color: color.map(oppositeColor).get())
+
     let ss = newStringStream()
-    ss.write(info.move)
-    let resp = await client.rpc.client.call("gamemove", ss.data)
+    ss.write(initmsg)
+    let resp = await client.rpc.client.call("gameinit", ss.data)
+    for info in view.game.getMoveLog():
+      let ss = newStringStream()
+      ss.write(info.move)
+      let resp = await client.rpc.client.call("gamemove", ss.data)
 
 proc initClientRpc(client: MCClient, conn: DataConnection) =
   if not client.rpcInitialized:
@@ -104,8 +153,10 @@ proc initClientRpc(client: MCClient, conn: DataConnection) =
         newStringStream(arg).read(msg)
         let pcolor = msg.color
         echo "GAMEINIT ", arg
-        client.status = stGame
-        client.view = some(newGameView(newGame(msg.board), color = some(pcolor)))
+        let game = newGame(msg.board)
+        let color = some(pcolor)
+        # TODO: better error handling :|
+        discard client.initGame(game, color = color)
         redraw()
         "ok"
 
@@ -115,24 +166,9 @@ proc initClientRpc(client: MCClient, conn: DataConnection) =
 
       var move: MCMove
       newStringStream(arg).read(view.game, move)
-      view.makeMove(move)
+      client.makeMove(move, noCallback = true)
       redraw()
       "ok"
-
-proc makeAndSendMove(client: MCClient, move: MCMove) {.async.} =
-  assert(client.view.isSome())
-  let view = client.view.get()
-  if client.peerid.isNil:
-    view.makeMove(move)
-  else:
-    let ss = newStringStream()
-    ss.write(move)
-    let resp = await client.rpc.client.call("gamemove", ss.data)
-    if resp == "ok":
-      view.makeMove(move)
-    else:
-      raise newException(PeerRejectedMoveError, fmt"peer rejected move: {move}")
-  redraw()
 
 proc onConnectionOpen(client: MCClient, conn: DataConnection) {.async.} =
   client.peerid = conn.peer
@@ -150,7 +186,7 @@ proc onConnectionClose(client: MCClient, conn: DataConnection) =
 
 proc registerConnection(client: MCClient, conn: DataConnection) {.async.} =
   echo "REGCON"
-
+  
   conn.on("open") do (x: cstring):
     discard client.onConnectionOpen(conn)
 
@@ -197,11 +233,7 @@ proc getTextFromUrl(url: cstring): Future[string] {.async.} =
 proc showGameFromText(cl: MCClient, gt: string) {.async.} =
   let gameData = base64.decode(gt)
   let game = newStringStream($gameData).readGame()
-  cl.status = stGame
-  cl.view = some(newGameView(game))
-  redraw()
-  if cl.rpcInitialized:
-    discard cl.initGame()
+  discard cl.initGame(game, color = some(randColor()))
 
 proc showGameFromUrl(cl: MCClient, url: cstring) {.async.} =
   let gameText = await getTextFromUrl(url)
@@ -263,6 +295,7 @@ proc squareOnClick(cl: MCClient): proc(ev: Event, n: Vnode) =
            # seem to be getting screwed up so we can't rely on passing
            # anything in by closure that isn't a constant.
            let target = ev.target
+           let rightClick = MouseEvent(ev).button == 2
            if target.getAttribute("file").isNil: return
            let np = (parseInt(target.getAttribute("posx")),
                      parseInt(target.getAttribute("posy")))
@@ -272,15 +305,21 @@ proc squareOnClick(cl: MCClient): proc(ev: Event, n: Vnode) =
            let clickedPos = pos(node, file, rank)
            if state.isSelected(clickedPos):
              state.clearSelection()
-           elif state.isPossibleMove(clickedPos):
+           elif state.isPossibleNormalMove(clickedPos):
              ## TODO: PROMOTION
              state.selectedPosition.map do (sp: MCPosition):
                let move = mv(sp, clickedPos, mcpNone)
-               discard cl.makeAndSendMove(move)
+               cl.makeMove(move)
+           elif state.isPossiblePremove(clickedPos):
+             ## TODO: PROMOTION
+             state.selectedPosition.map do (sp: MCPosition):
+               let move = mv(sp, clickedPos, mcpNone)
+               cl.togglePremove(move)
            else:
+             cl.removePremove(clickedPos)
              if clickedPos.hasPiece():
-               state.click(clickedPos)
-               state.selectPosition(clickedPos)
+               state.click(clickedPos, rightClick)
+           ev.preventDefault()
 
 proc renderMadeWith(): VNode =
   result = buildHtml(tdiv):
@@ -350,7 +389,7 @@ proc renderControls(client: MCClient): VNode =
         text "I'm feeling lucky"
         proc onclick() =
           let move = state.getRandomMove()
-          discard client.makeAndSendMove(move)
+          client.makeMove(move)
 
       if state.isSinglePlayer():
         button(onclick=proc() = state.undoLastMove()):
@@ -366,7 +405,7 @@ proc renderControls(client: MCClient): VNode =
           client.dumpGameToClipboard()
           e.target.innerText = "copied!"
           discard window.setTimeout(
-            proc() = e.target.innerText = origText,
+            proc() = (e.target.innerText = origText),
             1000)
 
       button:
@@ -374,7 +413,7 @@ proc renderControls(client: MCClient): VNode =
           state.config.lazyLoadMoves = not state.config.lazyLoadMoves
 
         if state.config.lazyLoadMoves:
-          text "eagerly load moves":
+          text "eagerly load moves"
         else:
           text "lazy load moves"
 
@@ -402,6 +441,12 @@ proc renderGame(client: MCClient): VNode =
     if len(moves) > 0:
       actionableBoards.incl(mpos.node)
 
+  var premoveFroms: HashSet[MCPosition]
+  var premoveTos: HashSet[MCPosition]
+  for fromPos, move in state.getPremoves():
+    premoveFroms.incl(fromPos)
+    premoveTos.incl(move.toPos)
+
   result = buildHtml(tdiv):
     renderControls(client)
 
@@ -417,7 +462,7 @@ proc renderGame(client: MCClient): VNode =
           let onclick = squareOnClick(client)
           var boardClass = "board"
           if isActionable: boardClass &= " board-actionable"
-          tdiv(class=boardClass, onclick=onclick):
+          tdiv(class=boardClass, onclick=onclick, oncontextmenu=onclick):
             let board = node.board
 
             let ranks = if client.view.get().playerColor == some(mccBlack):
@@ -427,13 +472,13 @@ proc renderGame(client: MCClient): VNode =
 
             for r in ranks:
               for f in countup(0, board.numFiles - 1):
-                let blackSquareClass = if (f + r) mod 2 == 0:
-                                         kstring("square square-black")
-                                       else:
-                                         kstring("square square-white")
-
                 let elPos = pos(node, f, r)
-                tdiv(class=blackSquareClass):
+                let blackSquare = (f + r) mod 2 == 0
+                let squareClass = if blackSquare: "square-black" else: "square-white"
+                let premoveFrom = if elPos in premoveFroms: "premove-from" else: ""
+                let premoveTo = if elPos in premoveTos: "premove-to" else: ""
+
+                tdiv(class=fmt"square {squareClass} {premoveFrom} {premoveTo}"):
                   tdiv(class=getClassFor(elPos.getSquare()),
                        file=kstring($f),
                        rank=kstring($r),
@@ -441,11 +486,12 @@ proc renderGame(client: MCClient): VNode =
                        posy=kstring($y))
 
                   if state.isPossibleMove(elPos):
-                      tdiv(class="highlight highlight-move")
+                    let highlightClassName = state.possibleMoveHighlightClass
+                    tdiv(class=fmt"highlight {highlightClassName}")
                   if state.isSelected(elPos):
-                      tdiv(class="highlight highlight-select")
+                    tdiv(class="highlight highlight-select")
                   if state.isChecked(elPos) or state.isHighlighted(elPos):
-                      tdiv(class="highlight highlight-check")
+                    tdiv(class="highlight highlight-check")
 
               br()
 
@@ -466,10 +512,10 @@ proc main() {.async.} =
   # instance of this program.
   let p = newPeer(
     id = randomString(12),
-    host = cstring"doa.skulk.org",
-    path = cstring"/myapp",
-    port = 2301,
-    secure = false,
+    #host = cstring"doa.skulk.org",
+    #path = cstring"/myapp",
+    #port = 2301,
+    #secure = false,
   )
 
   let client = newMCClient()
@@ -480,11 +526,12 @@ proc main() {.async.} =
   # Set up the board editor and its callback. In the callback, we set
   # up the game and start it.
   client.boardEditor = newBoardEditor(mcStartPos5x5) do (b: MCBoard):
-    client.status = stGame
-    client.view = some(newGameView(newGame(b)))
+    let color = if not client.peerid.isNil and client.rpcInitialized:
+      some(randColor())
+    else:
+      none[MCPlayerColor]()
 
-    if client.rpcInitialized:
-      discard client.initGame()
+    discard client.initGame(newGame(b), color = color)
 
   # Register the most basic callbacks on the peer object
   p.on("open", gotPeerId)

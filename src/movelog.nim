@@ -14,5 +14,5 @@ proc render(i: MCMoveInfo, onclickmove: proc(i: MCMoveInfo)): VNode =
 
 proc renderMoveLog*(g: MCGame, onclickmove: proc(i: MCMoveInfo)): VNode =
   result = buildHtml(tdiv):
-    for info in g.moveLog:
+    for info in g.getMoveLog():
       render(info, onclickmove)

@@ -24,6 +24,9 @@ proc pos*(node: MCLatticeNode, file: int, rank: int): MCPosition =
     result.file = file
     result.rank = rank
 
+proc onNode*(p: MCPosition, newNode: MCLatticeNode): MCPosition =
+  pos(newNode, p.file, p.rank)
+
 proc `$`*(p: MCPosition): string =
   fmt"[{p.node}: {p.file}, {p.rank}]"
 

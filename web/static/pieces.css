@@ -6,6 +6,7 @@
     resize: both;
     position: absolute;
     z-index: 3;
+    box-sizing: border-box;
 }
 
 .highlight {
@@ -21,7 +22,9 @@
 .highlight-select {
     background: #442244;
 }
-
+.highlight-premove {
+    background: #9C6611
+}
 .highlight-check {
     background: #CC2233;
 }

@@ -3,12 +3,11 @@ import options, sets, tables, random, strformat
 from sugar import `=>`
 
 type
+  MCMoveCallback* = proc(m: MCMove)
   MCGameViewConfig = object
     lazyLoadMoves*: bool
+    moveCallback*: MCMoveCallback
 
-  MCPremove = tuple
-    node: MCLatticeNode[MCBoard]
-    move: MCMove
   MCGameView* = ref object
     config*: MCGameViewConfig
     game*: MCGame
@@ -17,7 +16,7 @@ type
     currentLegalMoves*: Table[MCPosition, seq[MCMove]]
     selectedPosition*: Option[MCPosition]
 
-    premoves: seq[MCPremove]
+    premoves: Table[MCPosition, MCMove]
 
     ## If existent, a move that would capture a king.
     checks*: seq[MCMove]
@@ -25,11 +24,29 @@ type
     ## Tells the client what's going on, like "white is in checkmate"
     statusText*: string
 
+    possibleMoveHighlightClass*: cstring
     highlightedPositions: HashSet[MCPosition]
     possibleMovePositions: HashSet[MCPosition]
 
-proc initGameViewConfig*(): MCGameViewConfig =
-  result.lazyLoadMoves = false
+const moveHighlightClass = cstring"highlight-move"
+const premoveHighlightClass = cstring"highlight-premove"
+
+proc initGameViewConfig*(lazyLoadMoves = false,
+                         moveCallback: MCMoveCallback = nil): MCGameViewConfig =
+  result.lazyLoadMoves = lazyLoadMoves
+  result.moveCallback = moveCallback
+
+proc update*(cs: MCGameView, game: MCGame)
+proc newGameView*(game: MCGame, config = initGameViewConfig(), color = none[MCPlayerColor]()): MCGameView =
+  result = MCGameView(
+    config: config,
+    playerColor: color,
+    currentLegalMoves: initTable[MCPosition, seq[MCMove]](),
+    premoves: initTable[MCPosition, MCMove](),
+    selectedPosition: none[MCPosition](),
+    highlightedPositions: initHashSet[MCPosition](),
+    possibleMovePositions: initHashSet[MCPosition]())
+  result.update(game)
 
 proc clearSelection*(cs: MCGameView) =
   cs.selectedPosition = none[MCPosition]()
@@ -45,6 +62,13 @@ proc isSelected*(cs: MCGameView, pos: MCPosition): bool =
 
 proc isPossibleMove*(cs: MCGameView, pos: MCPosition): bool =
   return pos in cs.possibleMovePositions
+proc isPossibleNormalMove*(cs: MCGameView, pos: MCPosition): bool =
+  return cs.possibleMoveHighlightClass == moveHighlightClass and
+         cs.isPossibleMove(pos)
+proc isPossiblePremove*(cs: MCGameView, pos: MCPosition): bool =
+  return cs.possibleMoveHighlightClass == premoveHighlightClass and
+         cs.isPossibleMove(pos)
+
 proc isHighlighted*(cs: MCGameView, pos: MCPosition): bool =
   return pos in cs.highlightedPositions
 
@@ -74,6 +98,41 @@ proc setSinglePlayer*(cs: MCGameView) =
 proc setColor*(cs: MCGameView, color: MCPlayerColor) =
   cs.playerColor = some(color)
 
+
+proc makeMove*(cs: MCGameView, move: MCMove, noCallback = false) =
+  discard cs.game.makeMove(move)
+
+  if not noCallback:
+    if cs.config.moveCallback.isNil:
+      raise newException(ValueError, "missing move callback")
+    cs.config.moveCallback(move)
+
+  cs.update(cs.game)
+
+proc makePremove*(cs: MCGameView, premove: MCMove) =
+  # Does not call update because the game state doesn't actually
+  # change
+  cs.clearSelection()
+  cs.premoves[premove.fromPos] = premove
+
+proc removePremove*(cs: MCGameView, premovePos: MCPosition) =
+  cs.clearSelection()
+  cs.premoves.del(premovePos)
+
+proc removePremove*(cs: MCGameView, premove: MCMove) =
+  cs.clearSelection()
+  cs.premoves.del(premove.fromPos)
+
+proc getPremoves*(cs: MCGameView): Table[MCPosition, MCMove] =
+  cs.premoves
+
+proc undoLastMove*(cs: MCGameView) =
+  cs.game.undoLastMove()
+  cs.update(cs.game)
+
+proc clearPremoves*(cs: MCGameView) =
+  cs.premoves.clear()
+
 proc clearLegalMoves(cs: MCGameView) =
   cs.currentLegalMoves.clear()
 
@@ -93,12 +152,8 @@ proc updateStatusText(cs: MCGameView) =
       toPlay = n.board.toPlay
       break
 
-    if len(cs.checks) == 0:
-      cs.statusText = fmt"{toPlay} is in stalemate."
-    else:
+    if len(cs.checks) > 0:
       cs.statusText = fmt"{toPlay} is in checkmate."
-  else:
-    cs.statusText = ""
 
 proc getStatusText*(cs: MCGameView): cstring =
   return cs.statusText
@@ -116,22 +171,120 @@ proc calcMovesAt(cs: MCGameView, p: MCPosition) =
     return
   cs.currentLegalMoves[p] = @[]
   for move in getAllLegalMovesAt(cs.game.rootNode, p):
-    if cs.playerColor.isNone() or move.fromPos.getSquare().color == cs.playerColor.get():
+    if cs.isSinglePlayer() or move.fromPos.getSquare().color == cs.playerColor.get():
       cs.currentLegalMoves[p].add(move)
 
-proc click*(cs: MCGameView, p: MCPosition) =
-  cs.calcMovesAt(p)
-  cs.clearSelection()
-  for move in cs.currentLegalMoves[p]:
-    cs.markPossibleMove(move.toPos)
+proc markPremoves(cs: MCGameView, p: MCPosition) =
+  cs.possibleMoveHighlightClass = premoveHighlightClass
+  let toPlayColor = p.node.board.toPlay
+  let isPremoveBoardActive = some(toPlayColor) == cs.playerColor
+    
+  var premoveBoard = initBlankBoard(
+    numFiles = p.node.board.numFiles,
+    numRanks = p.node.board.numRanks,
+    toPlay = oppositeColor(toPlayColor))
+    
+  premoveBoard[p.file, p.rank] = p.getSquare()
 
-proc processPremoves(cs: MCGameView, game: MCGame) =
-  for (node, move) in cs.premoves:
-    # If the node still needs a move then the premove isn't relevant
-    # yet.
-    if node.needsMove():
-      continue
-    #TODO
+  let preferredSiblingDirection =
+    if toPlayColor == mccWhite:
+      mclsPrev
+    else:
+      mclsNext
+
+  # for this, we need to fake a new node and calculate the moves
+  # from that node, then transplant them back to this node. That's
+  # why the latticenodes module has a withTempBranch proc.
+
+  if isPremoveBoardActive:
+    for move in p.getPseudoLegalMoves(premove = true):
+      cs.markPossibleMove(move.toPos)
+  else:
+    p.node.withTempBranch(
+      premoveBoard,
+      preferredSiblingDirection) do (temp: MCLatticeNode[MCBoard]):
+        let premovePos = pos(temp, p.file, p.rank)
+        for move in premovePos.getPseudoLegalMoves(premove = true):
+          let movedToTempNode = move.toPos.node == temp
+          let realToPos =
+            if movedToTempNode:
+              move.toPos.onNode(p.node)
+            else:
+              move.toPos
+          cs.markPossibleMove(realToPos)
+
+proc click*(cs: MCGameView, p: MCPosition, rightClick = false) =
+  cs.clearSelection()
+  cs.selectPosition(p)
+
+  let toPlayColor = p.node.board.toPlay
+  let pieceColor = p.getSquare().color
+  if not rightclick and (cs.isSinglePlayer() or some(toPlayColor) == cs.playerColor):
+    # not a premove
+    cs.possibleMoveHighlightClass = moveHighlightClass
+    cs.calcMovesAt(p)
+    for move in cs.currentLegalMoves[p]:
+      cs.markPossibleMove(move.toPos)
+  elif some(pieceColor) == cs.playerColor:
+    # premove
+    cs.markPremoves(p)
+
+proc processPremoves(cs: MCGameView): bool =
+  ## Checks for and plays any premoves that need to be played. If a
+  ## premove got played, this proc will return `true`, otherwise
+  ## `false`. This is used by the `update` to avoid duplicating work.
+  ##
+  ## A premove will be played if all of the following are true:
+  ##   - The board it was made on has received a move.
+  ##   - Said move caused a check
+  ##   - The premove resolves said check.
+  ##      - If the premove does not resolve said check,
+  ##      - it will be ignored and deleted. This is in contrast
+  ##        with standard premove features.
+  ##
+  ## This should ONLY be called after the game view knows about the
+  ## current checks in the position. Otherwise it will always do
+  ## nothing.
+  if cs.game.getMoveCount() == 0 or len(cs.checks) == 0:
+    echo "position does not qualify for premoves"
+    return false
+
+  var chosenPremove: Option[MCMove]
+  let lastMoveInfo = cs.game.getLastMoveInfo().get()
+  let whoMoved = lastMoveInfo.move.fromPos.getSquare().color
+  let nf = lastMoveInfo.move.fromPos.node
+  let nt = lastMoveInfo.move.toPos.node
+  for _, premove in cs.premoves.pairs:
+    var premoveFromNode = premove.fromPos.node
+    var premoveToNode = premove.toPos.node
+    # We need to "transplant" the premove to the new node.
+
+    if not lastMoveInfo.newFromNode.isNil and
+       lastMoveInfo.newFromNode.past == premoveFromNode:
+      premoveFromNode = lastMoveInfo.newFromNode
+    elif lastMoveInfo.realToNode.past == premoveFromNode:
+      premoveFromNode = lastMoveInfo.realToNode
+
+    if not lastMoveInfo.newFromNode.isNil and
+       lastMoveInfo.newFromNode.past == premoveToNode:
+      premoveToNode = lastMoveInfo.newFromNode
+    elif lastMoveInfo.realToNode.past == premoveToNode:
+      premoveToNode = lastMoveInfo.realToNode
+
+    let transplantedMove = mv(
+      premove.fromPos.onNode(premoveFromNode),
+      premove.toPos.onNode(premoveToNode),
+      premove.promotion)
+
+    if cs.game.rootNode.isMoveLegal(transplantedMove):
+      # Since this move is legal, it resolves the check.
+      # We have our move!
+      echo "premove triggered", transplantedMove
+      cs.makeMove(transplantedMove)
+      chosenPremove = some(premove)
+      break
+
+  return chosenPremove.isSome()
 
 proc update*(cs: MCGameView, game: MCGame) =
   # Note: status text is updated in calcMoves. This is because we only
@@ -141,27 +294,14 @@ proc update*(cs: MCGameView, game: MCGame) =
   cs.clearLegalMoves()
   cs.calcLayout()
   cs.findCheck()
-  if not cs.config.lazyLoadMoves:
-    cs.calcMoves()
   cs.clearSelection()
   cs.statusText = ""
-
-proc newGameView*(game: MCGame, config = initGameViewConfig(), color = none[MCPlayerColor]()): MCGameView =
-  result = MCGameView(
-    config: config,
-    playerColor: color,
-    currentLegalMoves: initTable[MCPosition, seq[MCMove]](),
-    selectedPosition: none[MCPosition](),
-    highlightedPositions: initHashSet[MCPosition](),
-    possibleMovePositions: initHashSet[MCPosition]())
-  result.update(game)
-
-proc makeMove*(cs: MCGameView, move: MCMove) =
-  discard cs.game.makeMove(move)
-  cs.update(cs.game)
-proc undoLastMove*(cs: MCGameView) =
-  cs.game.undoLastMove()
-  cs.update(cs.game)
+  if cs.processPremoves():
+    # This means processPremoves made a move-- update will have been
+    # called already on the new position.
+    return
+  if not cs.config.lazyLoadMoves:
+    cs.calcMoves()
 
 proc getRandomMove*(cs: MCGameView): MCMove =
   cs.calcMoves()

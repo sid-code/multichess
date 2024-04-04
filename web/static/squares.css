@@ -9,6 +9,8 @@
     height: var(--piece-size);
     display: inline-block;
     z-index: 1;
+    box-sizing: border-box;
+    text-align: center;
 }
 
 .square-black {
@@ -17,4 +19,12 @@
 
 .square-white {
     background-color: #CCCCCC;
+}
+
+.premove-from {
+    background-color: #252525;
+}
+
+.premove-to {
+    background-color: #923923;
 }

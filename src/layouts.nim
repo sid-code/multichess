@@ -39,10 +39,10 @@ proc scale*(layout: var MCLatticeLayout, scale: MCLayoutPosition) =
   for pos, node in layout.placement:
     let newPos = pos * scale
     newPlacement[pos * scale] = node
-    if newPos.x <= newTopLeft.x and newPos.y <= newTopLeft.y:
-      newTopLeft = newPos
-    if newPos.x >= newBottomRight.x and newPos.y >= newBottomRight.y:
-      newBottomRight = newPos
+    if newPos.x <= newTopLeft.x: newTopLeft.x = newPos.x
+    if newPos.y <= newTopLeft.y: newTopLeft.y = newPos.y
+    if newPos.x >= newBottomRight.x: newBottomRight.x = newPos.x
+    if newPos.y >= newBottomRight.y: newBottomRight.y = newPos.y
   layout.placement = newPlacement
   layout.topLeft = newTopLeft
   layout.bottomRight = newBottomRight

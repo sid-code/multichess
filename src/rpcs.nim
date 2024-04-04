@@ -1,4 +1,4 @@
-import strformat, tables, random, streams, strutils
+import strformat, tables, random, streams
 import serialization
 
 when defined(js):

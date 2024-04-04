@@ -1,4 +1,4 @@
-import positions, pieces, latticenodes, boards, playercolors
+import positions, pieces, latticenodes, boards, playercolors, pathutils
 import combinations
 import tables, sequtils, hashes, strformat, math
 
@@ -10,13 +10,17 @@ type
     promotion*: MCPiece
 
   MCMoveInfo* = object
+    ## Information about the move *before* adding new boards.
     move*: MCMove
-    # The node where the piece is now located
+    ## The node where the piece is now located
     realToNode*: MCLatticeNode[MCBoard]
-    # (Only for time jumps) the node created with a missing piece
+    ## The new node with the missing piece (will be nil if the move is
+    ## not a time jump).
     newFromNode*: MCLatticeNode[MCBoard]
 
-  MCMoveRule = proc(node: MCLatticeNode[MCBoard], pos: MCPosition): seq[MCMove]
+  MCMoveRule = proc(node: MCLatticeNode[MCBoard],
+                    pos: MCPosition,
+                    premove: bool): seq[MCMove]
 
 proc mv*(fromPos: MCPosition, toPos: MCPosition, promotion: MCPiece): MCMove =
   MCMove(fromPos: fromPos, toPos: toPos, promotion: promotion)
@@ -38,16 +42,19 @@ var movementRules = initTable[MCPiece, MCMoveRule]()
 
 template defMovement*(p: MCPiece, body: untyped) {.dirty.} =
   movementRules[p] = proc (node: MCLatticeNode[MCBoard],
-      pos: MCPosition): seq[MCMove] =
+                           pos: MCPosition, premove: bool): seq[MCMove] =
     var pos = pos
     pos.node = node
     # utility procs
     template isBlocked(apos: MCPosition): bool {.used.} =
-      hasPieceOfSameColor(pos, apos)
+      # Premoves aren't blocked by anything
+      not premove and hasPieceOfSameColor(pos, apos)
     template moveTo(apos: MCPosition): MCMove {.used.} =
       mv(pos, apos, mcpNone)
     template moveToAndPromote(apos: MCPosition, promotion: MCPiece): MCMove {.used.} =
       mv(pos, apos, promotion)
+    template isCaptureT(m: MCMove): bool {.used.} =
+      not premove and isCapture(m)
 
     body
 
@@ -90,10 +97,10 @@ proc `==>`(pos: MCPosition, dir: (MCAxis, MCAxisDirection)): seq[MCPosition] =
   for p1 in getAdjacentPositions(pos, d, f):
     result.add(p1)
 
-iterator possiblePaths(axes: seq[MCAxis]): seq[(MCAxis, MCAxisDirection)] =
+iterator possiblePaths(axes: seq[MCAxis]): MCPath =
   let n = len(axes)
   for bitset in 0 .. 2 ^ n - 1:
-    var res: seq[(MCAxis, MCAxisDirection)]
+    var res: MCPath
     var x = bitset
     for i in 0 .. n - 1:
       if x mod 2 == 1:
@@ -102,6 +109,20 @@ iterator possiblePaths(axes: seq[MCAxis]): seq[(MCAxis, MCAxisDirection)] =
         res.add( (axes[i], mcdDown) )
       x = x shr 1
     yield res
+
+# This is for the staticFor macro
+proc possiblePathsP(axes: openArray[MCAxis]): seq[MCPath] {.compiletime.} =
+  let n = len(axes)
+  for bitset in 0 .. 2 ^ n - 1:
+    var res: MCPath
+    var x = bitset
+    for i in 0 .. n - 1:
+      if x mod 2 == 1:
+        res.add( (axes[i], mcdUp) )
+      else:
+        res.add( (axes[i], mcdDown) )
+      x = x shr 1
+    result.add(res)
 
 proc getPositionsAtPath(pos: MCPosition, path: seq[(MCAxis, MCAxisDirection)]): seq[MCPosition] =
   var prev = @[pos]
@@ -131,14 +152,6 @@ iterator iterPositions*(n: MCLatticeNode[MCBoard]): MCPosition =
     for r in 0..b.numRanks-1:
       yield pos(n, f, r)
 
-proc isLegal*(m: MCMove): bool =
-  ## This returns whether a PSEUDO-LEGAL move is legal. Not if just
-  ## ANY move is legal, it already has to be pseudo legal. See
-  ## `getPseudoLegalMoves`.
-
-  return true
-
-
 const axisPairs = static:
   toSeq(combinations(mcAxes, 2))
 const axisCombos = static:
@@ -147,16 +160,29 @@ const axisCombos = static:
   var empty: seq[MCAxis]
   res.del(res.find(empty))
   res
+const allPaths = static:
+  var res: seq[MCPath]
+  for combo in axisCombos:
+    res.add(combo.possiblePathsP())
+  res
 
-iterator getPseudoLegalMoves*(p: MCPosition): MCMove =
+iterator getPseudoLegalMoves*(p: MCPosition,
+                              premove = false): MCMove =
   ## Iterate over "pseudo-legal" moves. These include moves that are
   ## allowable by normal chess rules ("knight jumps two in one
   ## direction and one in another direction") but ignores things like
   ## checks
+  ##
+  ## If `premove = true` is passed (default `false`), then pawn
+  ## captures will be included in the list even if there is no piece
+  ## to capture, and pieces will ignore pieces of the other color when
+  ## moving.
+
+
   let square = p.getSquare()
   let piece = square.piece
   if piece in movementRules:
-    for move in movementRules[piece](p.node, p):
+    for move in movementRules[piece](p.node, p, premove):
       yield move
 
 defMovement mcpKnight:
@@ -183,7 +209,7 @@ defMovement mcpBishop:
 
             let candidateMove = moveTo(p2)
             result.add(candidateMove)
-            if not candidateMove.isCapture:
+            if not candidateMove.isCaptureT:
               frontier.add(p2)
 
 defMovement mcpRook:
@@ -197,7 +223,7 @@ defMovement mcpRook:
 
           let candidateMove = moveTo(p1)
           result.add(candidateMove)
-          if not candidateMove.isCapture:
+          if not candidateMove.isCaptureT:
             frontier.add(p1)
 
 defMovement mcpQueen:
@@ -254,7 +280,7 @@ defMovement mcpPawn:
 
       let candidateMove = moveTo(cpos)
       # Pawns can't capture forward
-      if candidateMove.isCapture: continue
+      if candidateMove.isCaptureT: continue
       result.add(candidateMove)
 
       if alreadyMoved: continue
@@ -262,7 +288,7 @@ defMovement mcpPawn:
       for ccpos in cpos ==> (dir, axisDir):
         if ccpos.isBlocked: continue
         let candidateMove = moveTo(ccpos)
-        if candidateMove.isCapture: continue
+        if candidateMove.isCaptureT: continue
         result.add(candidatemove)
 
   # Capture rules
@@ -271,5 +297,7 @@ defMovement mcpPawn:
       for f1 in mcAxisDirections:
         for cpos in pos ==> (d1, axisDir) ==> (d2, f1):
           let candidateMove = moveTo(cpos)
-          if candidateMove.isCapture:
+          # Pawn captures can be premoved regardless of whether there
+          # is a piece there.
+          if premove or candidateMove.isCaptureT:
             result.add(candidateMove)

@@ -96,9 +96,9 @@ proc read*(stream: Stream, b: var MCBoard) =
 
 proc write*(stream: Stream, g: MCGame) =
   stream.write($char(gdfTerse))
-  stream.write(g.startPosition)
-  stream.write(uint32(len(g.moveLog)))
-  for info in g.moveLog:
+  stream.write(g.getStartPosition())
+  stream.write(uint32(g.getMoveCount()))
+  for info in g.getMoveLog():
     stream.write(info.move)
 
 proc readGame*(stream: Stream): MCGame =

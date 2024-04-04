@@ -1,26 +1,45 @@
-import latticenodes, boards, moves, moverules, positions, pieces, streams
-import tables, json, strformat
+import latticenodes, boards, moves, moverules
+import tables, strformat, options
 
 type
+  ## Configuration options for a game
+  MCGameConfig* = object
+    ## The game's initial board (root node) starting position.
+    startPosition: MCBoard
+    ## Do we allow the player to leave checks unresolved as long aas
+    ## they want? If not, any check MUST be resolved on the next move.
+    allowLongChecks: bool
+
   MCGame* = ref object
-    numBoardFiles: int
-    numBoardRanks: int
-    startPosition*: MCBoard
+    config: MCGameConfig
     nodeLookup: Table[MCLatticePos, MCLatticeNode[MCBoard]]
     rootNode*: MCLatticeNode[MCBoard]
-    moveLog*: seq[MCMoveInfo]
+    moveLog: seq[MCMoveInfo]
 
-proc newGame*(startPos: MCBoard): MCGame =
+proc initGameConfig*(startPosition: MCBoard,
+                     allowLongChecks = false ): MCGameConfig =
+  result.allowLongChecks = allowLongChecks
+  result.startPosition = startPosition
+
+proc newGame*(config: MCGameConfig): MCGame =
   new result
-  result.startPosition = startPos
-  result.numBoardRanks = startPos.numRanks
-  result.numBoardFiles = startPos.numFiles
+  result.config = config
   result.moveLog = @[]
   result.nodeLookup = initTable[MCLatticePos, MCLatticeNode[MCBoard]]()
-
-  result.rootNode = MCLatticeNode[MCBoard](board: startPos)
-
+  result.rootNode = newLatticeNode[MCBoard](board = result.config.startPosition)
   result.nodeLookup[result.rootNode.latticePos] = result.rootNode
+
+proc newGame*(startPos: MCBoard): MCGame =
+  let config = initGameConfig(startPosition = startPos)
+  return newGame(config)
+  
+proc getStartPosition*(g: MCGame): MCBoard = g.config.startPosition
+proc getMoveCount*(g: MCGame): int = len(g.moveLog)
+proc getMoveLog*(g: MCGame): seq[MCMoveInfo] = g.moveLog
+proc getLastMoveInfo*(g: MCGame): Option[MCMoveInfo] =
+  if g.getMoveCount() > 0:
+    return some(g.getMoveLog()[^1])
+    
 
 proc makeMove*(g: MCGame, move: MCMove): MCLatticeNode[MCBoard] =
   let moveInfo = move.makeMove()
