@@ -96,7 +96,6 @@ proc getAllChecksInPosition*(rootNode: MCLatticeNode[MCBoard]): seq[MCMove] =
   toSeq(rootNode.checksInPosition)
 
 proc isMoveLegal*(rootNode: MCLatticeNode[MCBoard], move: MCMove): bool =
-  # Check for blatant illegal-ness
   if move.isMoveBlatantlyIllegal():
     return false
   if not move.fromPos.node.needsMove():
