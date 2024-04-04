@@ -14,4 +14,3 @@ bin           = @["web.js"]
 requires "nim >= 1.2"
 requires "karax"
 requires "html5_canvas"
-requires "wasmrt"
