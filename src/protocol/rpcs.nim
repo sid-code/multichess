@@ -1,4 +1,4 @@
-import strformat, tables, random, streams
+import std/[strformat, tables, random, streams]
 import serialization
 
 when defined(js):
@@ -14,13 +14,13 @@ type
     fn: string
     arg: string
   RPCProc = proc(arg: string): string
-  SimpleRPCServer* = object
+  SimpleRPCServer* = ref object
     fns: Table[string, RPCProc]
 
   SendProc = proc(data: string)
 
   ResolveCallback = proc(resp: string)
-  SimpleRPCClient* = object
+  SimpleRPCClient* = ref object
     resolveCallbacks: Table[uint32, ResolveCallback]
     send: SendProc
 
@@ -46,19 +46,21 @@ proc readRPCMessage(stream: Stream): RPCMessage =
   else:
     stream.read(result)
 
-proc initSimpleRPCServer*(): SimpleRPCServer =
+proc newSimpleRPCServer*(): SimpleRPCServer =
+  new(result)
   result.fns = initTable[string, RPCProc]()
 
-proc setSend*(c: var SimpleRPCClient, send: SendProc) =
+proc setSend*(c: SimpleRPCClient, send: SendProc) =
   c.send = send
 
-proc initSimpleRPCClient*(send: SendProc): SimpleRPCClient =
+proc newSimpleRPCClient*(send: SendProc): SimpleRPCClient =
+  new(result)
   result.resolveCallbacks = initTable[uint32, ResolveCallback]()
   result.setSend(send)
 
 proc initSimpleRPCPeer*(send: SendProc): SimpleRPCPeer =
-  result.server = initSimpleRPCServer()
-  result.client = initSimpleRPCClient(send)
+  result.server = newSimpleRPCServer()
+  result.client = newSimpleRPCClient(send)
 
 proc call*(s: SimpleRPCServer, fn: string, arg: string): RPCMessage =
   if fn notin s.fns:
@@ -77,12 +79,12 @@ proc call*(s: SimpleRPCServer, msg: RPCMessage): RPCMessage =
   result = s.call(msg.fn, msg.arg)
   result.randnum = msg.randnum
 
-proc register*(s: var SimpleRPCServer, fn: string, prok: RPCProc) =
+proc register*(s: SimpleRPCServer, fn: string, prok: RPCProc) =
   if fn in s.fns:
     raise newException(KeyError, fmt"rpc function `{fn}` already defined.")
   s.fns[fn] = prok
   
-proc recv*(c: var SimpleRPCClient, msg: RPCMessage) =
+proc recv*(c: SimpleRPCClient, msg: RPCMessage) =
   if msg.request:
     # Discarding requests
     return
@@ -104,7 +106,7 @@ proc recv*(peer: var SimpleRPCPeer, data: string) =
   else:
     peer.client.recv(msg)
 
-proc call*(c: var SimpleRPCClient, fn: string, arg: string): Future[string] =
+proc call*(c: SimpleRPCClient, fn: string, arg: string): Future[string] =
   let randnum = uint32(rand(high(int32))) # rand doesn't support high(uint32)
   result = newPromise() do (resolve: proc(resp: string)):
     c.resolveCallbacks[randnum] = resolve

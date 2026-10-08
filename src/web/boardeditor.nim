@@ -2,7 +2,7 @@ include karax/prelude
 import dom
 from sugar import `=>`
 
-import boards, pieces, playercolors
+import multichess/[boards, pieces, playercolors]
 import piececlasses
 
 type

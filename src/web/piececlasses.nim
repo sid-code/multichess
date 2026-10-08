@@ -1,5 +1,5 @@
-import strformat
-import boards, pieces, playercolors
+import std/strformat
+import multichess/[boards, pieces, playercolors]
 
 proc getClassFor*(s: MCSquare): cstring =
   let piece = s.piece

@@ -1,5 +1,5 @@
-import latticenodes, boards
-import tables, strformat
+import multichess/[latticenodes, boards]
+import std/[tables, strformat]
 
 type
   MCLayoutPosition* = tuple[x: int, y: int]

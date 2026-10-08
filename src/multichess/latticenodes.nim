@@ -1,4 +1,4 @@
-import tables, hashes, strutils, strformat
+import std/[tables, hashes, strutils, strformat]
 
 # gotta use a generic because of the circular dependency :/
 type

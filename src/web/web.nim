@@ -1,12 +1,14 @@
 include karax/prelude
 import karax/vstyles
-import options, tables, sets, random, streams, strformat, sequtils, base64
+import std/[options, tables, sets, random, streams, strformat, sequtils, base64]
 import dom, asyncjs
 import html5_canvas
 import peerjs
 include multichess
-import rpcs, clipboard, fetch
-import piececlasses, boardeditor, gameview, movelog, serialization
+import multichess/gameview
+import clipboard, fetch
+import protocol/[rpcs, serialization]
+import boardeditor, movelog, piececlasses
 
 # Constants
 
@@ -51,7 +53,7 @@ proc read*(s: Stream, im: var GameInitMessage) =
   im.color = MCPlayerColor(serialization.readUint8(s))
 
 ### Utility
-proc randColor(): MCPlayerColor = rand(mccWhite..mccBlack)
+proc randColor(): MCPlayerColor = sample([mccWhite, mccBlack])
 
 ### Game client (including p2p stuff)
 proc newMCClient(): MCClient =
@@ -496,12 +498,16 @@ proc renderGame(client: MCClient): VNode =
               br()
 
 proc render(cl: MCClient): VNode =
+  let tooSmall = window.innerWidth < 500 or window.innerHeight < 500
   result = buildHtml(tdiv):
-    case cl.status:
-      of stConfig:
-        renderConfigPanel(cl)
-      of stGame, stGameEnd:
-        renderGame(cl)
+    if tooSmall:
+      text "sorry, your screen is too small. Find a bigger one."
+    else:
+      case cl.status:
+        of stConfig:
+          renderConfigPanel(cl)
+        of stGame, stGameEnd:
+          renderGame(cl)
 
 proc randomString(length: int): string =
   for _ in 0 ..< length:

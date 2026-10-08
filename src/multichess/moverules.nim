@@ -1,5 +1,5 @@
-import latticenodes, boards, moves, positions, playercolors, pieces
-import tables, sequtils
+import multichess/[latticenodes, boards, moves, positions, playercolors, pieces]
+import std/[tables, sequtils]
 
 iterator getAllPossibleMoves(rootNode: MCLatticeNode[MCBoard]): MCMove =
   for node in rootNode.getNodesNeedingMove():

@@ -1,5 +1,5 @@
-import boards, positions, latticenodes
-import sequtils
+import multichess/[boards, positions, latticenodes]
+import std/sequtils
 
 type
   MCPositionIterator* = object

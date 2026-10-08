@@ -1,7 +1,7 @@
 # Code to render a move log
 include karax/prelude
-import strformat
-import games, boards, moves, positions
+import std/strformat
+import multichess/[games, boards, moves, positions]
 
 proc render(i: MCMoveInfo, onclickmove: proc(i: MCMoveInfo)): VNode =
   result = buildHtml(tdiv):

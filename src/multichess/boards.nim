@@ -1,5 +1,5 @@
-import tables, strutils, json, hashes
-import pieces, playercolors
+import std/[tables, strutils, json, hashes]
+import multichess/[pieces, playercolors]
 
 type
   MCSquare* = tuple

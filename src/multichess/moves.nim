@@ -1,6 +1,6 @@
-import positions, pieces, latticenodes, boards, playercolors, pathutils
-import combinations
-import tables, sequtils, hashes, strformat, math
+import multichess/[positions, pieces, latticenodes, boards, playercolors, pathutils]
+import util/combinations
+import std/[tables, sequtils, hashes, strformat, math]
 
 type
   MCMove* = ref MCMoveObj

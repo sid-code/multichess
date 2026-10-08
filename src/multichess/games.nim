@@ -1,5 +1,5 @@
-import latticenodes, boards, moves, moverules
-import tables, strformat, options
+import multichess/[latticenodes, boards, moves, moverules]
+import std/[tables, strformat, options]
 
 type
   ## Configuration options for a game

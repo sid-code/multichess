@@ -1,6 +1,6 @@
-import games, boards, moves, positions, layouts, moverules, playercolors, latticenodes
-import options, sets, tables, random, strformat
-from sugar import `=>`
+import multichess/[games, boards, moves, positions, layouts, moverules, playercolors, latticenodes]
+import std/[options, sets, tables, random, strformat]
+from std/sugar import `=>`
 
 type
   MCMoveCallback* = proc(m: MCMove)

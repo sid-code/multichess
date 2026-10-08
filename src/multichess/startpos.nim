@@ -1,4 +1,4 @@
-import boards, pieces, playercolors
+import multichess/[boards, pieces, playercolors]
 
 proc addPawns(board: var MCBoard) =
   for file in countup(0, board.numFiles - 1):

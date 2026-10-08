@@ -1,7 +1,7 @@
 # Serialization.
 
-import streams, bitops
-import latticenodes, boards, games, moves, positions, pieces, playercolors
+import std/[streams, bitops]
+import multichess/[latticenodes, boards, games, moves, positions, pieces, playercolors]
 
 type
   GameDumpFormat* = enum

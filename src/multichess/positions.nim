@@ -1,5 +1,5 @@
-import latticenodes, boards
-import hashes, strformat
+import multichess/[latticenodes, boards]
+import std/[hashes, strformat]
 
 type
   MCPosition* = ref MCPositionObj
