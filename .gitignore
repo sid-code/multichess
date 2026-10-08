@@ -1,3 +1,4 @@
+.direnv
 *.js.map
 /tests/*.js
 /tests/test
